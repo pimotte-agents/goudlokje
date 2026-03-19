@@ -17,5 +17,8 @@ lean_lib "Tests" where
 lean_exe "goudlokje_tests" where
   root := `Tests.Main
 
-require "leanprover-community" / "mathlib" @ git "v4.29.0-rc6"
 require "leanprover" / "lean4-cli" @ git "v4.29.0-rc6"
+require "impermeable" / "waterproof-genre" @ git "feature/smaller-genre"
+require "impermeable" / "verbose-lean4" @ git "v4.29.0-rc6"
+
+
