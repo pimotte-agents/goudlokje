@@ -4,8 +4,12 @@ open Lake DSL
 package "goudlokje" where
   version := v!"0.1.0"
 
+lean_lib "Goudlokje" where
+  roots := #[`Goudlokje]
+
 @[default_target]
 lean_exe "goudlokje" where
   root := `Main
 
 require "leanprover-community" / "mathlib" @ git "v4.29.0-rc6"
+require "leanprover" / "lean4-cli" @ git "v4.29.0-rc6"
