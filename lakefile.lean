@@ -8,4 +8,4 @@ package "goudlokje" where
 lean_exe "goudlokje" where
   root := `Main
 
-require "leanprover-community" / "mathlib" @ git "v4.29.0-r6"
+require "leanprover-community" / "mathlib" @ git "v4.29.0-rc6"
