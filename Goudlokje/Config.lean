@@ -7,7 +7,7 @@ namespace Goudlokje
 structure Config where
   /-- Tactic strings to probe at each proof step. -/
   tactics : Array String
-  deriving Repr, Inhabited
+  deriving Repr, Inhabited, BEq
 
 instance : Lean.FromJson Config where
   fromJson? json := do

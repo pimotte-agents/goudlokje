@@ -18,7 +18,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
   - `goudlokje check [files...]`
   - `goudlokje update [--all] [files...]`
 - [x] Return a non-zero exit code on any error or shortcut found in `check` mode
-- [ ] Write unit tests for config parsing (valid config, missing fields, unknown fields)
+- [x] Write unit tests for config parsing (valid config, missing fields, unknown fields) — `Tests/Config.lean`
 
 **Notes:** `lean4-cli` added as explicit dependency in `lakefile.lean`. Config lives in `Goudlokje/Config.lean`.
 
@@ -34,7 +34,8 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Define the `TestFile` schema:
   - A list of expected shortcuts, each identified by file, line, column, and tactic name
 - [x] Implement a parser and serialiser for `TestFile` (`Goudlokje/TestFile.lean`)
-- [ ] Write tests for file discovery and test-file round-trip (parse → serialise → parse)
+- [x] Write tests for test-file round-trip (parse → serialise → parse) — `Tests/TestFile.lean`
+- [ ] Write tests for file discovery (requires temp directory IO fixtures)
 
 ---
 
@@ -47,7 +48,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Handle vanilla Lean 4 proofs (any `by` block)
 - [ ] Handle Lean Verbose proofs (step boundaries may differ)
 - [ ] Handle Waterproof Genre proofs
-- [ ] Write integration tests using small synthetic `.lean` files with known shortcuts
+- [x] Write integration tests using small synthetic `.lean` files with known shortcuts — `Tests/Analysis.lean` + `Tests/Fixtures/Simple.lean`
 
 **Notes:** The analysis re-elaborates each file from scratch (resolving its own imports). Performance can be improved later by reusing cached `.olean` environments. Lean Verbose and Waterproof support is deferred to Milestones 3b and 7.
 
@@ -61,7 +62,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Implement `ShortcutResult` (`unexpected` / `expected`) and `StaleEntry` in `Goudlokje/Shortcuts.lean`
 - [x] Implement human-readable console output for each result type
 - [x] In `check` mode, exit non-zero when any `unexpected` shortcut exists
-- [ ] Write unit tests for the classification logic
+- [x] Write unit tests for the classification logic — `Tests/Shortcuts.lean`
 
 ---
 
@@ -71,7 +72,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ### Tasks
 - [x] Wire Milestones 1–4 together into the `check` subcommand (`Goudlokje/Check.lean`)
-- [ ] Integrate with the GitHub Actions workflow in `.github/workflows/lean_action_ci.yml`
+- [x] Integrate with the GitHub Actions workflow in `.github/workflows/lean_action_ci.yml`
 - [ ] Add an end-to-end test that runs `check` on a fixture project and asserts exit code and output
 - [ ] Document usage in `README.md`
 
@@ -85,7 +86,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Implement interactive prompting for each `unexpected` shortcut (`Goudlokje/Update.lean`)
 - [x] Implement `--all` flag: accept every found shortcut without prompting
 - [x] Implement removal of `stale` entries (with confirmation in interactive mode, automatic in `--all`)
-- [ ] Write tests for the `--all` path and for the file-mutation logic
+- [ ] Write tests for the `--all` path and for the file-mutation logic (requires temp IO)
 
 ---
 
@@ -115,10 +116,10 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ## Remaining work (priority order)
 
-1. **Tests** — unit tests for Config parsing, TestFile round-trip, and Shortcuts classification
-2. **Integration test** — fixture `.lean` file with known shortcuts; assert `check` exit code and output
-3. **CI integration** — update `.github/workflows/lean_action_ci.yml` to run `goudlokje check`
-4. **README** — document installation, `.goudlokje.json` format, and CI usage
+1. **End-to-end test** — run `check` on a fixture project and assert exit code + output
+2. **README** — document installation, `.goudlokje.json` format, and CI usage
+3. **Update mode tests** — `--all` path and file-mutation logic (needs temp IO)
+4. **Discovery tests** — file discovery with temp directories
 5. **Lean Verbose support** — extend Analysis to handle Verbose step boundaries
 6. **Waterproof Genre support** (Milestone 7)
 7. **External project usability** (Milestone 8)

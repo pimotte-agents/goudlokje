@@ -14,7 +14,7 @@ structure ExpectedShortcut where
 /-- The contents of a `.test.json` file accompanying a `.lean` worksheet. -/
 structure TestFile where
   expected : Array ExpectedShortcut
-  deriving Repr, Inhabited
+  deriving Repr, Inhabited, BEq
 
 instance : Lean.FromJson ExpectedShortcut where
   fromJson? json := do
