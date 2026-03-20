@@ -24,14 +24,17 @@ def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := fal
   let mut unexpectedCount := 0
   for ws in worksheets do
     IO.println s!"Checking {ws.sourcePath}..."
-    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache)
+    let probeLog : Option (Nat → Nat → String → Bool → IO Unit) :=
+      if verbose then
+        some fun line col tactic succeeded =>
+          let mark := if succeeded then "✓" else "✗"
+          IO.println s!"  Probe {mark} {line}:{col} — `{tactic}`"
+      else none
+    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
     let tf    ← TestFile.load (ws.testPath.getD (ws.sourcePath.withExtension "test.json"))
     let cr    := classify found tf
     if debugMode then
       IO.println s!"  Found {found.size} probe result(s), {cr.shortcuts.size} shortcut(s), {cr.stale.size} stale entry/entries"
-    if verbose then
-      for pr in found do
-        IO.println s!"  Probe hit: {pr.line}:{pr.column} — `{pr.tactic}`"
     for r in cr.shortcuts do
       printShortcutResult r
       if let .unexpected _ := r then

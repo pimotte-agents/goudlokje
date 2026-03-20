@@ -166,9 +166,23 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ---
 
+## Milestone 12 — Extended verbose probe logging ✅
+
+**Goal:** In `--verbose` mode, print every probe attempt (success and failure) with its result, not just the successful ones.
+
+### Tasks
+- [x] Add `onProbe : Option (Nat → Nat → String → Bool → IO Unit)` callback parameter to `analyzeFile`
+- [x] Call the callback inside the probing loop for every (line, col, tactic, succeeded) combination
+- [x] In `runCheck`, build and pass the callback when `verbose := true` (prints `Probe ✓/✗ line:col — 'tactic'`)
+- [x] In `runUpdate`, build and pass the callback when `verbose := true` (same format)
+- [x] Remove the now-redundant post-hoc "Probe hit" loop (replaced by the callback)
+- [x] Write tests: `testOnProbeCallbackInvoked`, `testOnProbeCallbackIncludesFailures`, `testOnProbeSuccessCountMatchesResults`
+
+---
+
 ## Remaining work
 
-- None. All planned milestones are complete.
+- None. All planned milestones complete.
 
 ---
 

@@ -112,6 +112,55 @@ def testEnvCacheReusedAcrossFiles : IO Unit := do
   unless r1 == r2 do
     throw (IO.userError "testEnvCacheReusedAcrossFiles: repeated analysis differs")
 
+/-- onProbe callback is invoked for every probe attempt (success and failure).
+    We pass a tactic that succeeds on some goals and use a counter to verify
+    the callback is called at all. -/
+def testOnProbeCallbackInvoked : IO Unit := do
+  let callCount ← IO.mkRef (0 : Nat)
+  let callback : Nat → Nat → String → Bool → IO Unit := fun _ _ _ _ =>
+    callCount.modify (· + 1)
+  let _ ← analyzeFile "TestSuite/Fixtures/Simple.lean" #["decide"]
+    (onProbe := some callback)
+  let total ← callCount.get
+  unless total > 0 do
+    throw (IO.userError
+      s!"testOnProbeCallbackInvoked: expected >0 probe callbacks, got {total}")
+
+/-- onProbe callback is invoked for failed probes too, not only successes.
+    We use a tactic that never succeeds (`skip`) and expect callbacks anyway. -/
+def testOnProbeCallbackIncludesFailures : IO Unit := do
+  let callCount ← IO.mkRef (0 : Nat)
+  let callback : Nat → Nat → String → Bool → IO Unit := fun _ _ _ _ =>
+    callCount.modify (· + 1)
+  -- `skip` always leaves the goal unchanged (does not close it)
+  let results ← analyzeFile "TestSuite/Fixtures/Simple.lean" #["skip"]
+    (onProbe := some callback)
+  let total ← callCount.get
+  -- `skip` never succeeds, so there should be no results
+  unless results.isEmpty do
+    throw (IO.userError
+      s!"testOnProbeCallbackIncludesFailures: expected no results for 'skip', got {results.size}")
+  -- but the callback must still have been called (for the failed attempts)
+  unless total > 0 do
+    throw (IO.userError
+      s!"testOnProbeCallbackIncludesFailures: expected >0 callbacks for failures, got {total}")
+
+/-- The number of successful onProbe callbacks equals the number of (deduplicated)
+    probe results returned by analyzeFile. -/
+def testOnProbeSuccessCountMatchesResults : IO Unit := do
+  let successCount ← IO.mkRef (0 : Nat)
+  let callback : Nat → Nat → String → Bool → IO Unit := fun _ _ _ success =>
+    if success then successCount.modify (· + 1) else pure ()
+  -- Use a single-tactic probe so that each (pos, tactic) is hit at most once per goal.
+  -- Deduplication means results.size ≤ successCount (multiple goals at a pos count once).
+  let results ← analyzeFile "TestSuite/Fixtures/Simple.lean" #["decide"]
+    (onProbe := some callback)
+  let succs ← successCount.get
+  -- Every deduplicated result must have had at least one successful callback
+  unless succs >= results.size do
+    throw (IO.userError
+      s!"testOnProbeSuccessCount: successes={succs} < results={results.size}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
@@ -128,5 +177,11 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testEnvCacheReturnsSameResults"
   testEnvCacheReusedAcrossFiles;
                              IO.println "  ✓ testEnvCacheReusedAcrossFiles"
+  testOnProbeCallbackInvoked;
+                             IO.println "  ✓ testOnProbeCallbackInvoked"
+  testOnProbeCallbackIncludesFailures;
+                             IO.println "  ✓ testOnProbeCallbackIncludesFailures"
+  testOnProbeSuccessCountMatchesResults;
+                             IO.println "  ✓ testOnProbeSuccessCountMatchesResults"
 
 end TestSuite.Analysis

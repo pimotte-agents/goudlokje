@@ -169,7 +169,8 @@ private def getOrBuildEnv
 def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
     (filterVerboseSteps : Bool := false)
-    (envCache : Option EnvCache := none) :
+    (envCache : Option EnvCache := none)
+    (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
     IO (Array ProbeResult) := do
   -- Ensure the Lean stdlib .olean files are findable at runtime
   Lean.initSearchPath (← Lean.findSysroot)
@@ -212,10 +213,13 @@ def analyzeFile
   -- Probe each goal at each tactic step
   let mut results : Array ProbeResult := #[]
   for (ci, ti) in tacticInfos do
+    let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
     for goal in ti.goalsBefore do
       for tacticStr in probeTactics do
-        if ← tryTacticAt ci ti.mctxBefore goal tacticStr then
-          let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
+        let succeeded ← tryTacticAt ci ti.mctxBefore goal tacticStr
+        if let some cb := onProbe then
+          cb pos.line pos.column tacticStr succeeded
+        if succeeded then
           results := results.push {
             file   := filePath.toString
             line   := pos.line
