@@ -19,9 +19,10 @@ def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) 
   let worksheets ← discoverWorksheets paths
   if debug then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
+  let cache ← mkEnvCache
   for ws in worksheets do
     IO.println s!"Updating {ws.sourcePath}..."
-    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps
+    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache)
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
     let tf    ← TestFile.load testPath
     let cr    := classify found tf

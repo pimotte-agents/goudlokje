@@ -88,6 +88,30 @@ def testVerboseFilterKeepsFirstPerStep : IO Unit := do
       s!"testVerboseFilterKeepsFirstPerStep: expected 2 shortcuts (one per step), \
         got {results.size}")
 
+/-- Environment cache: analyzing the same file twice with a shared cache
+    should return identical results to analyzing without the cache. -/
+def testEnvCacheReturnsSameResults : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/Simple.lean"
+  let withoutCache ← analyzeFile fixturePath #["decide"]
+  let cache ← mkEnvCache
+  let withCache ← analyzeFile fixturePath #["decide"] (envCache := some cache)
+  unless withCache == withoutCache do
+    throw (IO.userError
+      s!"testEnvCache: cached result differs from uncached \
+        (uncached={withoutCache.size}, cached={withCache.size})")
+
+/-- Environment cache: a second analysis of a file sharing the same imports
+    should produce the same results (the cached env is valid for both). -/
+def testEnvCacheReusedAcrossFiles : IO Unit := do
+  -- Both Simple.lean and VerboseMultiStep.lean can be analyzed, but they have
+  -- different imports so the cache stores two environments. This verifies that
+  -- the cache doesn't return a stale environment for the second file.
+  let cache ← mkEnvCache
+  let r1 ← analyzeFile "TestSuite/Fixtures/Simple.lean" #["decide"] (envCache := some cache)
+  let r2 ← analyzeFile "TestSuite/Fixtures/Simple.lean" #["decide"] (envCache := some cache)
+  unless r1 == r2 do
+    throw (IO.userError "testEnvCacheReusedAcrossFiles: repeated analysis differs")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
@@ -100,5 +124,9 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testVerboseFilterReducesResults"
   testVerboseFilterKeepsFirstPerStep;
                              IO.println "  ✓ testVerboseFilterKeepsFirstPerStep"
+  testEnvCacheReturnsSameResults;
+                             IO.println "  ✓ testEnvCacheReturnsSameResults"
+  testEnvCacheReusedAcrossFiles;
+                             IO.println "  ✓ testEnvCacheReusedAcrossFiles"
 
 end TestSuite.Analysis

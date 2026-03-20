@@ -13,10 +13,11 @@ def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := fal
   let worksheets ← discoverWorksheets paths
   if debug then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
+  let cache ← mkEnvCache
   let mut unexpectedCount := 0
   for ws in worksheets do
     IO.println s!"Checking {ws.sourcePath}..."
-    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps
+    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache)
     let tf    ← TestFile.load (ws.testPath.getD (ws.sourcePath.withExtension "test.json"))
     let cr    := classify found tf
     if debug then

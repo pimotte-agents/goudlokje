@@ -20,7 +20,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Return a non-zero exit code on any error or shortcut found in `check` mode
 - [x] Write unit tests for config parsing (valid config, missing fields, unknown fields) — `Tests/Config.lean`
 - [x] Document how to run automated tests in README
-- [ ] Add debug output describing which config files are loaded under the --debug flag
+- [x] Add debug output describing which config files are loaded under the --debug flag
 
 **Notes:** `lean4-cli` added as explicit dependency in `lakefile.lean`. Config lives in `Goudlokje/Config.lean`.
 
@@ -119,10 +119,42 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ---
 
-## Remaining work (priority order)
+## Milestone 9 — Lean Verbose step filtering ✅
 
-1. **Lean Verbose step filtering** — optionally restrict shortcut reporting to positions that are *between* Verbose step boundaries, so sub-step noise can be suppressed
-2. **Performance** — reuse cached `.olean` environments instead of re-elaborating from scratch
+**Goal:** Optionally restrict shortcut reporting to the first tactic within each Lean Verbose step body, suppressing sub-step noise.
+
+### Tasks
+- [x] Discover Verbose step boundary syntax kind names empirically (`tacticLet'sFirstProveThat_`, `tacticLet'sNowProveThat_`, `tacticLet'sProveThat_Works_`)
+- [x] Add `filterVerboseSteps : Bool := false` to `Config` with JSON round-trip
+- [x] Implement `isVerboseStepBoundary` and `applyVerboseStepFilter` in `Goudlokje/Analysis.lean`
+- [x] Pass `filterVerboseSteps` through `analyzeFile`, `runCheck`, and `runUpdate`
+- [x] Add fixture `TestSuite/Fixtures/VerboseMultiStep.lean` with multi-tactic step bodies
+- [x] Write tests: `testVerboseFilterReducesResults`, `testVerboseFilterKeepsFirstPerStep`
+- [x] Write Config tests: `testFilterVerboseStepsDefault`, `testFilterVerboseStepsTrue`, `testFilterVerboseStepsRoundTrip`
+
+**Notes:** When `filterVerboseSteps = true` in `.goudlokje.json`, shortcuts at step boundary positions (`Let's first/now prove that`) and at positions after the first tactic within each step body are suppressed. The first tactic within each step body (the step's "entry point") is always probed.
+
+---
+
+## Milestone 10 — Environment caching for multi-file analysis ✅
+
+**Goal:** Avoid redundant `.olean` loading when analyzing multiple files with the same import set.
+
+### Tasks
+- [x] Add `EnvCache` type (`IO.Ref (Array (String × Environment))`) to `Analysis.lean`
+- [x] Add `mkEnvCache : IO EnvCache` factory
+- [x] Implement `getOrBuildEnv` with header-text-based cache key
+- [x] Add `envCache : Option EnvCache` parameter to `analyzeFile`
+- [x] Create and pass a shared cache in `runCheck` and `runUpdate`
+- [x] Add tests: `testEnvCacheReturnsSameResults`, `testEnvCacheReusedAcrossFiles`
+
+**Notes:** Cache key is the concatenation of all `import`/comment/blank lines at the top of the file, which uniquely identifies the import set in practice. The cache is created once per `check`/`update` invocation and shared across all files in that run.
+
+---
+
+## Remaining work
+
+- None. All planned milestones are complete.
 
 ---
 

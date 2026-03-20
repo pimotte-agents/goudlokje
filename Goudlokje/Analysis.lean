@@ -135,15 +135,41 @@ def collectTacticKinds (filePath : System.FilePath) : IO (Array String) := do
     if acc.contains k then acc else acc.push k) #[]
   return kinds
 
+/-- A cache mapping import-header text to compiled environments.
+    Reusing environments across files with the same imports avoids redundant
+    `.olean` loading (the dominant cost for files that import Mathlib). -/
+abbrev EnvCache := IO.Ref (Array (String × Environment))
+
+/-- Create a fresh empty environment cache. -/
+def mkEnvCache : IO EnvCache := IO.mkRef #[]
+
+/-- Look up or build the environment for a set of imports.
+    `key` uniquely identifies the import set (e.g. the raw header text).
+    `build` is called only on a cache miss to produce the `Environment`. -/
+private def getOrBuildEnv
+    (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
+  let cached ← cache.get
+  match cached.find? (fun (k, _) => k == key) with
+  | some (_, env) => return env
+  | none =>
+    let env ← build
+    cache.modify (fun arr => arr.push (key, env))
+    return env
+
 /-- Analyse a single Lean source file, returning every (position, tactic) pair
     where a probe tactic succeeds.
 
     Uses `Frontend.FrontendM` with `snap? := none` and `Elab.async = false`
     so theorem bodies are elaborated synchronously and `TacticInfo` nodes are
-    accumulated directly in `commandState.infoState.trees`. -/
+    accumulated directly in `commandState.infoState.trees`.
+
+    If `envCache` is provided, the compiled environment for the file's imports
+    is reused across files with identical import lists, avoiding redundant
+    `.olean` loading. -/
 def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
-    (filterVerboseSteps : Bool := false) :
+    (filterVerboseSteps : Bool := false)
+    (envCache : Option EnvCache := none) :
     IO (Array ProbeResult) := do
   -- Ensure the Lean stdlib .olean files are findable at runtime
   Lean.initSearchPath (← Lean.findSysroot)
@@ -153,7 +179,16 @@ def analyzeFile
   let opts  := Elab.async.set Options.empty false
   let inputCtx := Parser.mkInputContext input filePath.toString
   let (header, parserState, _messages) ← Parser.parseHeader inputCtx
-  let (env, _msgs) ← processHeader header opts {} inputCtx
+  -- Cache key: all `import` lines at the top of the file (whitespace-terminated).
+  -- Files sharing the same import set produce the same key and reuse the same env.
+  let headerKey := "\n".intercalate
+    (input.splitOn "\n" |>.takeWhile fun l =>
+      l.startsWith "import " || l.startsWith "--" || l.isEmpty)
+  let env ← match envCache with
+    | some cache =>
+      getOrBuildEnv cache headerKey do
+        let (env, _) ← processHeader header opts {} inputCtx; pure env
+    | none => do let (env, _) ← processHeader header opts {} inputCtx; pure env
   let initCmdState : Command.State := Command.mkState env {} opts
   let initState : Frontend.State := {
     commandState := initCmdState
