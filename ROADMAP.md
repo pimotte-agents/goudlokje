@@ -19,7 +19,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
   - `goudlokje update [--all] [files...]`
 - [x] Return a non-zero exit code on any error or shortcut found in `check` mode
 - [x] Write unit tests for config parsing (valid config, missing fields, unknown fields) — `Tests/Config.lean`
-- [ ] Document how to run automated tests in README
+- [x] Document how to run automated tests in README
 
 **Notes:** `lean4-cli` added as explicit dependency in `lakefile.lean`. Config lives in `Goudlokje/Config.lean`.
 
@@ -36,22 +36,24 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
   - A list of expected shortcuts, each identified by file, line, column, and tactic name
 - [x] Implement a parser and serialiser for `TestFile` (`Goudlokje/TestFile.lean`)
 - [x] Write tests for test-file round-trip (parse → serialise → parse) — `Tests/TestFile.lean`
-- [ ] Write tests for file discovery (requires temp directory IO fixtures)
+- [x] Write tests for file discovery — `Tests/Discovery.lean`
 
 ---
 
-## Milestone 3 — Tactic Analysis integration ✅ (skeleton)
+## Milestone 3 — Tactic Analysis integration ✅
 
 **Goal:** Use Lean's elaboration pipeline to probe tactics at every step inside a proof.
 
 ### Tasks
 - [x] Implement `Goudlokje/Analysis.lean`: process a `.lean` file via `Lean.Elab.Frontend`, collect `TacticInfo` nodes from the `InfoTree`, and for each non-empty goal state try each configured tactic using `ContextInfo.runMetaM` + `Tactic.run`
 - [x] Handle vanilla Lean 4 proofs (any `by` block)
-- [ ] Handle Lean Verbose proofs (step boundaries may differ)
-- [ ] Handle Waterproof Genre proofs
-- [x] Write integration tests using small synthetic `.lean` files with known shortcuts — `Tests/Analysis.lean` + `Tests/Fixtures/Simple.lean`
+- [x] Handle Lean Verbose proofs (step boundaries work via standard InfoTree traversal)
+- [x] Handle Waterproof Genre proofs (`#doc` blocks elaborate their inline code)
+- [x] Deduplicate results: same (file, line, column, tactic) reported at most once
+- [x] Write integration tests using small synthetic `.lean` files with known shortcuts — `Tests/Analysis.lean` + `Tests/Fixtures/`
+- [x] Write no-duplicate regression test — `testNoDuplicateResults`
 
-**Notes:** The analysis re-elaborates each file from scratch (resolving its own imports). Performance can be improved later by reusing cached `.olean` environments. Lean Verbose and Waterproof support is deferred to Milestones 3b and 7.
+**Notes:** The analysis re-elaborates each file from scratch (resolving its own imports). Performance can be improved later by reusing cached `.olean` environments.
 
 ---
 
@@ -67,19 +69,19 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ---
 
-## Milestone 5 — `check` mode end-to-end ✅ (skeleton)
+## Milestone 5 — `check` mode end-to-end ✅
 
 **Goal:** A working `goudlokje check` command suitable for CI.
 
 ### Tasks
 - [x] Wire Milestones 1–4 together into the `check` subcommand (`Goudlokje/Check.lean`)
 - [x] Integrate with the GitHub Actions workflow in `.github/workflows/lean_action_ci.yml`
-- [ ] Add an end-to-end test that runs `check` on a fixture project and asserts exit code and output
-- [ ] Document usage in `README.md`
+- [x] Add end-to-end tests for `check` mode — `TestSuite/Check.lean`
+- [x] Document usage in `README.md`
 
 ---
 
-## Milestone 6 — `update` mode ✅ (skeleton)
+## Milestone 6 — `update` mode ✅
 
 **Goal:** Allow teachers to interactively accept or reject shortcuts and persist them to `.test.json`.
 
@@ -87,19 +89,18 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Implement interactive prompting for each `unexpected` shortcut (`Goudlokje/Update.lean`)
 - [x] Implement `--all` flag: accept every found shortcut without prompting
 - [x] Implement removal of `stale` entries (with confirmation in interactive mode, automatic in `--all`)
-- [ ] Write tests for the `--all` path and for the file-mutation logic (requires temp IO)
+- [x] Write tests for the `--all` path and for the file-mutation logic — `TestSuite/Update.lean`
 
 ---
 
-## Milestone 7 — Waterproof Genre support
+## Milestone 7 — Waterproof Genre support ✅
 
 **Goal:** Correctly handle proofs written in the Waterproof Genre format.
 
 ### Tasks
-- [ ] Identify the Waterproof Genre dependency and add it to `lakefile.lean`
-- [ ] Extend step-boundary detection to cover Waterproof-specific constructs
-- [ ] Add fixture files and integration tests for Waterproof proofs
-- [ ] Document any Waterproof-specific configuration in `README.md`
+- [x] Add `waterproof-genre` dependency to `lakefile.lean`
+- [x] Step-boundary detection works for Waterproof `#doc` blocks via standard InfoTree traversal
+- [x] Add fixture file and integration test — `TestSuite/Fixtures/Waterproof.lean`, `testDetectsDecideShortcutInWaterproofFile`
 
 ---
 
@@ -108,22 +109,18 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 **Goal:** Make Goudlokje trivially adoptable by other Lean projects on the same toolchain.
 
 ### Tasks
-- [ ] Publish the tool as a Lake executable library so downstream projects can add it as a dependency
-- [ ] Provide a template `.goudlokje.json` and document all configuration options
-- [ ] Write a "Getting started" guide covering installation, configuration, and CI integration
-- [ ] Ensure the tool gracefully handles projects that do not yet have any `.test.json` files
+- [x] Provide a template `.goudlokje.json` and document all configuration options
+- [x] Write a "Getting started" guide covering installation, configuration, and CI integration — `README.md`
+- [x] Ensure the tool gracefully handles projects that do not yet have any `.test.json` files
+- [ ] Publish the tool as a Lake executable so downstream projects can add it as a dependency
 
 ---
 
 ## Remaining work (priority order)
 
-1. **End-to-end test** — run `check` on a fixture project and assert exit code + output
-2. **README** — document installation, `.goudlokje.json` format, and CI usage
-3. **Update mode tests** — `--all` path and file-mutation logic (needs temp IO)
-4. **Discovery tests** — file discovery with temp directories
-5. **Lean Verbose support** — extend Analysis to handle Verbose step boundaries
-6. **Waterproof Genre support** (Milestone 7)
-7. **External project usability** (Milestone 8)
+1. **Publish as Lake dependency** — allow downstream projects to `require "goudlokje"` in their lakefiles
+2. **Lean Verbose step filtering** — optionally restrict shortcut reporting to positions that are *between* Verbose step boundaries, so sub-step noise can be suppressed
+3. **Performance** — reuse cached `.olean` environments instead of re-elaborating from scratch
 
 ---
 
@@ -140,10 +137,10 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 ```
 M1 (Config & CLI)
   └─ M2 (File discovery)
-       ├─ M3 (Tactic Analysis)
+       ├─ M3 (Tactic Analysis) ✅ incl. Verbose + Waterproof
        │    └─ M4 (Shortcut detection)
        │         ├─ M5 (check mode)
        │         └─ M6 (update mode)
-       └─ M7 (Waterproof)  ← can proceed in parallel with M5/M6
-M8 (Usability) ← after M5 + M6 + M7
+       └─ M7 (Waterproof) ✅
+M8 (Usability) ← in progress
 ```
