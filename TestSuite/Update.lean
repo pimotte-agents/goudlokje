@@ -62,6 +62,19 @@ def testUpdateAllNoTactics : IO Unit := do
     throw (IO.userError
       s!"testUpdateAllNoTactics: expected 0 entries, got {tf.expected.size}")
 
+/-- `runUpdate` with debug=true must still create the test file correctly. -/
+def testUpdateDebugMode : IO Unit := do
+  let dir : System.FilePath := "/tmp/goudlokje_update_debug"
+  let (leanFile, testJson) ← setupTempWorkspace dir
+  let cfg : Config := { tactics := #["decide"] }
+  runUpdate #[leanFile] cfg true (debug := true)
+  unless ← testJson.pathExists do
+    throw (IO.userError "testUpdateDebugMode: .test.json was not created")
+  let tf ← TestFile.load testJson
+  unless tf.expected.size ≥ 1 do
+    throw (IO.userError
+      s!"testUpdateDebugMode: expected ≥1 entries in test file, got {tf.expected.size}")
+
 def runAll : IO Unit := do
   testUpdateAllCreatesTestFile;
     IO.println "  ✓ testUpdateAllCreatesTestFile"
@@ -69,5 +82,7 @@ def runAll : IO Unit := do
     IO.println "  ✓ testUpdateAllIdempotent"
   testUpdateAllNoTactics;
     IO.println "  ✓ testUpdateAllNoTactics"
+  testUpdateDebugMode;
+    IO.println "  ✓ testUpdateDebugMode"
 
 end TestSuite.Update

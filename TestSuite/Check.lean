@@ -22,10 +22,20 @@ def testCheckZeroWithEmptyTactics : IO Unit := do
     throw (IO.userError
       s!"testCheckZero: expected 0 with empty tactics, got {n}")
 
+/-- `runCheck` with debug=true must still return the correct non-zero count. -/
+def testCheckDebugMode : IO Unit := do
+  let cfg : Config := { tactics := #["decide"] }
+  let n ← runCheck #["TestSuite/Fixtures/Simple.lean"] cfg (debug := true)
+  unless n > 0 do
+    throw (IO.userError
+      s!"testCheckDebugMode: expected >0 unexpected shortcuts, got {n}")
+
 def runAll : IO Unit := do
   testCheckNonZeroForUnexpectedShortcuts;
     IO.println "  ✓ testCheckNonZeroForUnexpectedShortcuts"
   testCheckZeroWithEmptyTactics;
     IO.println "  ✓ testCheckZeroWithEmptyTactics"
+  testCheckDebugMode;
+    IO.println "  ✓ testCheckDebugMode"
 
 end TestSuite.Check

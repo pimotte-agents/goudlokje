@@ -17,7 +17,24 @@ It runs configurable tactics at every proof step in a worksheet and reports any 
 
 ## Installation
 
-Goudlokje is built with [Lake](https://github.com/leanprover/lake). Clone the repository and build the executable:
+### As a Lake dependency (recommended)
+
+Add Goudlokje as a dependency in your project's `lakefile.lean`:
+
+```lean
+require "goudlokje"
+  from git "https://github.com/pimotte/goudlokje" @ "main"
+```
+
+Then build the executable (Lake will fetch and compile Goudlokje automatically):
+
+```bash
+lake build goudlokje
+```
+
+The binary is placed at `.lake/packages/goudlokje/.lake/build/bin/goudlokje`.
+
+### Standalone build
 
 ```bash
 git clone https://github.com/pimotte/goudlokje
@@ -25,7 +42,7 @@ cd goudlokje
 lake build goudlokje
 ```
 
-The binary is placed in `.lake/build/bin/goudlokje`.
+The binary is placed at `.lake/build/bin/goudlokje`.
 
 ### Toolchain
 
@@ -61,6 +78,9 @@ goudlokje check
 
 # Check specific files or directories
 goudlokje check Exercises/ Solutions/Sheet1.lean
+
+# Print debug information (probe counts, result statistics)
+goudlokje check --debug Exercises/
 ```
 
 Exits **0** if no unexpected shortcuts are found, **1** otherwise.
@@ -73,6 +93,9 @@ goudlokje update Exercises/
 
 # Non-interactive: accept all shortcuts without prompting
 goudlokje update --all Exercises/
+
+# With debug output
+goudlokje update --debug --all Exercises/
 ```
 
 `update` reads existing `.test.json` files, shows new shortcuts and stale entries, and writes the updated file back to disk.
@@ -126,13 +149,24 @@ The test suite covers:
 
 ## CI integration
 
-Add a step to your GitHub Actions workflow:
+### Standalone build
 
 ```yaml
 - name: Check for shortcuts
   run: |
     lake build goudlokje
     .lake/build/bin/goudlokje check
+```
+
+### As a Lake dependency
+
+When Goudlokje is declared as a `require` in your lakefile, the binary is built inside the `.lake/packages/` tree:
+
+```yaml
+- name: Check for shortcuts
+  run: |
+    lake build goudlokje
+    .lake/packages/goudlokje/.lake/build/bin/goudlokje check
 ```
 
 The step fails automatically if any unexpected shortcut is found.

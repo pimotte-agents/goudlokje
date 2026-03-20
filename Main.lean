@@ -18,7 +18,8 @@ private def runCheck (p : Parsed) : IO UInt32 := do
   let rawPaths := p.variableArgsAs! String
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
-  let n ← Goudlokje.runCheck paths cfg
+  let debug := p.hasFlag "debug"
+  let n ← Goudlokje.runCheck paths cfg debug
   return if n == 0 then 0 else 1
 
 private def runUpdate (p : Parsed) : IO UInt32 := do
@@ -27,12 +28,16 @@ private def runUpdate (p : Parsed) : IO UInt32 := do
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
   let acceptAll := p.hasFlag "all"
-  Goudlokje.runUpdate paths cfg acceptAll
+  let debug := p.hasFlag "debug"
+  Goudlokje.runUpdate paths cfg acceptAll debug
   return 0
 
 private def checkCmd : Cmd := `[Cli|
   check VIA runCheck;
   "Check Lean worksheets for unexpected shortcuts."
+
+  FLAGS:
+    debug; "Print debug information during analysis (probe counts, result statistics)"
 
   ARGS:
     ...files : String; "Lean files or directories to check (default: current directory)"
@@ -43,7 +48,8 @@ private def updateCmd : Cmd := `[Cli|
   "Update .test.json files with found shortcuts."
 
   FLAGS:
-    all; "Accept all shortcuts and remove all stale entries without prompting"
+    all;   "Accept all shortcuts and remove all stale entries without prompting"
+    debug; "Print debug information during analysis (probe counts, result statistics)"
 
   ARGS:
     ...files : String; "Lean files or directories to update (default: current directory)"

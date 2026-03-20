@@ -13,14 +13,20 @@ private def promptYN (prompt : String) : IO Bool := do
   return line.trimAscii.toString.toLower == "y"
 
 /-- Run update mode: interactively (or with --all) accept shortcuts and persist them.
-    Stale entries are removed (with confirmation unless --all). -/
-def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) : IO Unit := do
+    Stale entries are removed (with confirmation unless --all).
+    When `debug` is true, prints additional analysis statistics per file. -/
+def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) (debug : Bool := false) : IO Unit := do
   let worksheets ← discoverWorksheets paths
+  if debug then
+    IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
   for ws in worksheets do
+    IO.println s!"Updating {ws.sourcePath}..."
     let found ← analyzeFile ws.sourcePath cfg.tactics
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
     let tf    ← TestFile.load testPath
     let cr    := classify found tf
+    if debug then
+      IO.println s!"  Found {found.size} probe result(s), {cr.shortcuts.size} shortcut(s), {cr.stale.size} stale entry/entries"
 
     let mut newExpected := tf.expected
 

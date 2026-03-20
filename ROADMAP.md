@@ -78,6 +78,8 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Integrate with the GitHub Actions workflow in `.github/workflows/lean_action_ci.yml`
 - [x] Add end-to-end tests for `check` mode — `TestSuite/Check.lean`
 - [x] Document usage in `README.md`
+- [x] Include default output that describes which file is being checked
+- [x] Include debug output, togglable by a --debug flag
 
 ---
 
@@ -112,15 +114,14 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] Provide a template `.goudlokje.json` and document all configuration options
 - [x] Write a "Getting started" guide covering installation, configuration, and CI integration — `README.md`
 - [x] Ensure the tool gracefully handles projects that do not yet have any `.test.json` files
-- [ ] Publish the tool as a Lake executable so downstream projects can add it as a dependency
+- [x] Publish the tool as a Lake executable so downstream projects can add it as a dependency
 
 ---
 
 ## Remaining work (priority order)
 
-1. **Publish as Lake dependency** — allow downstream projects to `require "goudlokje"` in their lakefiles
-2. **Lean Verbose step filtering** — optionally restrict shortcut reporting to positions that are *between* Verbose step boundaries, so sub-step noise can be suppressed
-3. **Performance** — reuse cached `.olean` environments instead of re-elaborating from scratch
+1. **Lean Verbose step filtering** — optionally restrict shortcut reporting to positions that are *between* Verbose step boundaries, so sub-step noise can be suppressed
+2. **Performance** — reuse cached `.olean` environments instead of re-elaborating from scratch
 
 ---
 
@@ -142,5 +143,5 @@ M1 (Config & CLI)
        │         ├─ M5 (check mode)
        │         └─ M6 (update mode)
        └─ M7 (Waterproof) ✅
-M8 (Usability) ← in progress
+M8 (Usability) ✅
 ```
