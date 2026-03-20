@@ -51,9 +51,24 @@ def testDetectsDecideShortcutInWaterproofFile : IO Unit := do
     throw (IO.userError
       "testWaterproof: expected tactic 'decide' in results")
 
+/-- Integration test: verify that `analyzeFile` never returns duplicate results.
+    The same (file, line, column, tactic) must appear at most once. -/
+def testNoDuplicateResults : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/Simple.lean"
+  let results ← analyzeFile fixturePath #["decide"]
+  for i in List.range results.size do
+    for j in List.range results.size do
+      if i < j then
+        let ri := results[i]!
+        let rj := results[j]!
+        if ri == rj then
+          throw (IO.userError
+            s!"testNoDuplicateResults: duplicate at {ri.file}:{ri.line}:{ri.column} — `{ri.tactic}`")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
+  testNoDuplicateResults;    IO.println "  ✓ testNoDuplicateResults"
   testDetectsDecideShortcutInVerboseFile;
                              IO.println "  ✓ testDetectsDecideShortcutInVerboseFile"
   testDetectsDecideShortcutInWaterproofFile;

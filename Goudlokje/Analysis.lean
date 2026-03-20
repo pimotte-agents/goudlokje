@@ -112,6 +112,9 @@ def analyzeFile
             column := pos.column
             tactic := tacticStr
           }
-  return results
+  -- Deduplicate: multiple InfoTree nodes can cover the same tactic step,
+  -- and each goal in goalsBefore is probed independently, so the same
+  -- (file, line, column, tactic) tuple can appear several times.
+  return results.foldl (fun acc r => if acc.contains r then acc else acc.push r) #[]
 
 end Goudlokje
