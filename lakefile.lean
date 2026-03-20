@@ -20,7 +20,8 @@ lean_lib "TestSuite" where
 -- build Verbose.lean here; WaterproofGenre is built via the `waterproof_fixtures` target.
 @[default_target]
 lean_lib "TestFixtures" where
-  roots := #[`TestSuite.Fixtures.Simple, `TestSuite.Fixtures.Verbose]
+  roots := #[`TestSuite.Fixtures.Simple, `TestSuite.Fixtures.Verbose,
+             `TestSuite.Fixtures.VerboseMultiStep]
 
 -- FixtureDeps imports Verbose and Waterproof packages so their oleans are compiled.
 -- This ensures `analyzeFile` can import them at runtime when processing fixture files.

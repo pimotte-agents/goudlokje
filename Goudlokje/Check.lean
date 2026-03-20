@@ -16,7 +16,7 @@ def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := fal
   let mut unexpectedCount := 0
   for ws in worksheets do
     IO.println s!"Checking {ws.sourcePath}..."
-    let found ← analyzeFile ws.sourcePath cfg.tactics
+    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps
     let tf    ← TestFile.load (ws.testPath.getD (ws.sourcePath.withExtension "test.json"))
     let cr    := classify found tf
     if debug then

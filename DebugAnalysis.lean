@@ -40,9 +40,10 @@ private partial def dumpTree (indent : String) (ci? : Option ContextInfo) (tree 
   | .hole id =>
     IO.println s!"{indent}[hole {id.name}] ← should not appear after substituteLazy"
 
-def main : IO Unit := do
+def main (args : List String) : IO Unit := do
   Lean.initSearchPath (← Lean.findSysroot)
-  let filePath : System.FilePath := "TestSuite/Fixtures/Simple.lean"
+  unsafe Lean.enableInitializersExecution
+  let filePath : System.FilePath := args.headD "TestSuite/Fixtures/Simple.lean"
   let input ← IO.FS.readFile filePath
   -- Disable async so theorem bodies are elaborated synchronously
   let opts := Elab.async.set Options.empty false

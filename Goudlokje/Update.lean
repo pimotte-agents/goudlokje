@@ -21,7 +21,7 @@ def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) 
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
   for ws in worksheets do
     IO.println s!"Updating {ws.sourcePath}..."
-    let found ← analyzeFile ws.sourcePath cfg.tactics
+    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
     let tf    ← TestFile.load testPath
     let cr    := classify found tf

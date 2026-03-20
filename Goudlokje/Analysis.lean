@@ -67,6 +67,74 @@ private partial def processCommandsCollectTrees
   else
     processCommandsCollectTrees ctx newState newAcc
 
+/-- Return true if the tactic is a Lean Verbose step-boundary tactic.
+    These tactics introduce a new sub-goal (the "step goal") in a Verbose proof.
+    Kind names discovered empirically by inspecting the Verbose English library. -/
+private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
+  let k := ti.stx.getKind.toString
+  k == "tacticLet'sFirstProveThat_" ||
+  k == "tacticLet'sNowProveThat_"   ||
+  k == "tacticLet'sProveThat_Works_"
+
+/-- When `filterVerboseSteps` is true, keep only:
+    - Non-boundary tactics that are the FIRST tactic in their Verbose step body.
+    Tactics before any step boundary, and step boundary tactics themselves, are dropped.
+    This suppresses sub-step noise: shortcuts at intermediate positions within a step. -/
+private def applyVerboseStepFilter
+    (infos : Array (ContextInfo × TacticInfo)) (fileMap : FileMap) :
+    Array (ContextInfo × TacticInfo) :=
+  -- Early exit: no step boundaries present → no filtering needed
+  if !infos.any (fun (_, ti) => isVerboseStepBoundary ti) then infos
+  else
+    -- Sort by source position
+    let withPos := infos.map fun (ci, ti) =>
+      (fileMap.toPosition (ti.stx.getPos?.getD 0), ci, ti)
+    let sorted := withPos.toList.mergeSort (fun (p1, _, _) (p2, _, _) =>
+      p1.line < p2.line || (p1.line == p2.line && p1.column < p2.column))
+    -- Walk the sorted list: keep only the first non-boundary per step.
+    -- State: (result, inStep, stepGotFirst)
+    let (result, _, _) := sorted.foldl
+      (fun (acc : Array (ContextInfo × TacticInfo) × Bool × Bool) (_, ci, ti) =>
+        let (result, inStep, stepGotFirst) := acc
+        if isVerboseStepBoundary ti then
+          -- New step: reset tracking; boundary itself is not kept
+          (result, true, false)
+        else if inStep && !stepGotFirst then
+          -- First tactic in this step body: keep it
+          (result.push (ci, ti), true, true)
+        else
+          -- Before any boundary, or subsequent within step: suppress
+          (result, inStep, stepGotFirst))
+      (#[], false, false)
+    result
+
+/-- Collect all unique syntax kind names from TacticInfo nodes in a file.
+    Useful for debugging and discovering kind names for Verbose/Waterproof tactics. -/
+def collectTacticKinds (filePath : System.FilePath) : IO (Array String) := do
+  Lean.initSearchPath (← Lean.findSysroot)
+  unsafe Lean.enableInitializersExecution
+  let input ← IO.FS.readFile filePath
+  let opts  := Elab.async.set Options.empty false
+  let inputCtx := Parser.mkInputContext input filePath.toString
+  let (header, parserState, _messages) ← Parser.parseHeader inputCtx
+  let (env, _msgs) ← processHeader header opts {} inputCtx
+  let initCmdState : Command.State := Command.mkState env {} opts
+  let initState : Frontend.State := {
+    commandState := initCmdState
+    parserState  := parserState
+    cmdPos       := 0
+  }
+  let ctx : Frontend.Context := { inputCtx }
+  let (allTrees, finalState) ← processCommandsCollectTrees ctx initState #[]
+  let assignment := finalState.commandState.infoState.assignment
+  let resolvedTrees := allTrees.map fun t => t.substitute assignment
+  let tacticInfos : Array (ContextInfo × TacticInfo) :=
+    resolvedTrees.foldl (fun acc t => collectTacticInfos none t acc) #[]
+  let kinds := tacticInfos.foldl (fun acc (_, ti) =>
+    let k := ti.stx.getKind.toString
+    if acc.contains k then acc else acc.push k) #[]
+  return kinds
+
 /-- Analyse a single Lean source file, returning every (position, tactic) pair
     where a probe tactic succeeds.
 
@@ -74,7 +142,8 @@ private partial def processCommandsCollectTrees
     so theorem bodies are elaborated synchronously and `TacticInfo` nodes are
     accumulated directly in `commandState.infoState.trees`. -/
 def analyzeFile
-    (filePath : System.FilePath) (probeTactics : Array String) :
+    (filePath : System.FilePath) (probeTactics : Array String)
+    (filterVerboseSteps : Bool := false) :
     IO (Array ProbeResult) := do
   -- Ensure the Lean stdlib .olean files are findable at runtime
   Lean.initSearchPath (← Lean.findSysroot)
@@ -97,8 +166,14 @@ def analyzeFile
   -- Resolve any pending lazy assignments
   let assignment := finalState.commandState.infoState.assignment
   let resolvedTrees := allTrees.map fun t => t.substitute assignment
-  let tacticInfos : Array (ContextInfo × TacticInfo) :=
+  let allTacticInfos : Array (ContextInfo × TacticInfo) :=
     resolvedTrees.foldl (fun acc t => collectTacticInfos none t acc) #[]
+  -- Optionally restrict to first-in-step positions for Lean Verbose proofs
+  let tacticInfos :=
+    if filterVerboseSteps then
+      applyVerboseStepFilter allTacticInfos inputCtx.fileMap
+    else
+      allTacticInfos
   -- Probe each goal at each tactic step
   let mut results : Array ProbeResult := #[]
   for (ci, ti) in tacticInfos do

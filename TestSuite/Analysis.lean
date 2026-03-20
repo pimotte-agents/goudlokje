@@ -65,6 +65,29 @@ def testNoDuplicateResults : IO Unit := do
           throw (IO.userError
             s!"testNoDuplicateResults: duplicate at {ri.file}:{ri.line}:{ri.column} — `{ri.tactic}`")
 
+/-- Verbose step filtering: without filtering, `decide` is a shortcut at both
+    the `show` (noop) and `norm_num` positions within each step body.
+    This verifies the unfiltered result has more shortcuts than the filtered one. -/
+def testVerboseFilterReducesResults : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiStep.lean"
+  let withoutFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := false)
+  let withFilter    ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  unless withFilter.size < withoutFilter.size do
+    throw (IO.userError
+      s!"testVerboseFilter: expected filter to reduce shortcut count, \
+        got unfiltered={withoutFilter.size} filtered={withFilter.size}")
+
+/-- Verbose step filtering: the filtered result contains exactly one shortcut
+    per step (at the first tactic, `show`), suppressing `norm_num` sub-step noise. -/
+def testVerboseFilterKeepsFirstPerStep : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiStep.lean"
+  let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  -- The fixture has 2 steps, each with `show` as the first tactic → 2 shortcuts expected
+  unless results.size == 2 do
+    throw (IO.userError
+      s!"testVerboseFilterKeepsFirstPerStep: expected 2 shortcuts (one per step), \
+        got {results.size}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
@@ -73,5 +96,9 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testDetectsDecideShortcutInVerboseFile"
   testDetectsDecideShortcutInWaterproofFile;
                              IO.println "  ✓ testDetectsDecideShortcutInWaterproofFile"
+  testVerboseFilterReducesResults;
+                             IO.println "  ✓ testVerboseFilterReducesResults"
+  testVerboseFilterKeepsFirstPerStep;
+                             IO.println "  ✓ testVerboseFilterKeepsFirstPerStep"
 
 end TestSuite.Analysis

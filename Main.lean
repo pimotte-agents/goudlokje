@@ -5,30 +5,33 @@ import Goudlokje.Update
 
 open Cli
 
-private def loadConfig : IO Goudlokje.Config := do
+private def loadConfig (debug : Bool) : IO Goudlokje.Config := do
   let path : System.FilePath := ".goudlokje.json"
   if ← path.pathExists then
+    if debug then
+      IO.println s!"[debug] Loading config from {path}"
     Goudlokje.Config.load path
   else
-    -- Default: no tactics configured
+    if debug then
+      IO.println s!"[debug] No config file found at {path}, using defaults (no tactics)"
     return { tactics := #[] }
 
 private def runCheck (p : Parsed) : IO UInt32 := do
-  let cfg ← loadConfig
+  let debug := p.hasFlag "debug"
+  let cfg ← loadConfig debug
   let rawPaths := p.variableArgsAs! String
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
-  let debug := p.hasFlag "debug"
   let n ← Goudlokje.runCheck paths cfg debug
   return if n == 0 then 0 else 1
 
 private def runUpdate (p : Parsed) : IO UInt32 := do
-  let cfg ← loadConfig
+  let debug := p.hasFlag "debug"
+  let cfg ← loadConfig debug
   let rawPaths := p.variableArgsAs! String
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
   let acceptAll := p.hasFlag "all"
-  let debug := p.hasFlag "debug"
   Goudlokje.runUpdate paths cfg acceptAll debug
   return 0
 
