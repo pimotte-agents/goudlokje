@@ -152,6 +152,20 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ---
 
+## Milestone 11 — `--verbose` flag ✅
+
+**Goal:** Add a `--verbose` flag that includes all `--debug` output plus detailed per-file reporting.
+
+### Tasks
+- [x] Add `verbose : Bool := false` parameter to `runCheck` (implies `debug`)
+- [x] Add `verbose : Bool := false` parameter to `runUpdate` (implies `debug`)
+- [x] Print discovered worksheet list before analysis when `--verbose`
+- [x] Print each individual probe hit (`line:col — tactic`) per file when `--verbose`
+- [x] Add `--verbose` flag to `checkCmd` and `updateCmd` in `Main.lean`
+- [x] Write tests: `testCheckVerboseMode`, `testUpdateVerboseMode`
+
+---
+
 ## Remaining work
 
 - None. All planned milestones are complete.

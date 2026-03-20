@@ -75,6 +75,19 @@ def testUpdateDebugMode : IO Unit := do
     throw (IO.userError
       s!"testUpdateDebugMode: expected ≥1 entries in test file, got {tf.expected.size}")
 
+/-- `runUpdate` with verbose=true must still create the test file correctly. -/
+def testUpdateVerboseMode : IO Unit := do
+  let dir : System.FilePath := "/tmp/goudlokje_update_verbose"
+  let (leanFile, testJson) ← setupTempWorkspace dir
+  let cfg : Config := { tactics := #["decide"] }
+  runUpdate #[leanFile] cfg true (verbose := true)
+  unless ← testJson.pathExists do
+    throw (IO.userError "testUpdateVerboseMode: .test.json was not created")
+  let tf ← TestFile.load testJson
+  unless tf.expected.size ≥ 1 do
+    throw (IO.userError
+      s!"testUpdateVerboseMode: expected ≥1 entries in test file, got {tf.expected.size}")
+
 def runAll : IO Unit := do
   testUpdateAllCreatesTestFile;
     IO.println "  ✓ testUpdateAllCreatesTestFile"
@@ -84,5 +97,7 @@ def runAll : IO Unit := do
     IO.println "  ✓ testUpdateAllNoTactics"
   testUpdateDebugMode;
     IO.println "  ✓ testUpdateDebugMode"
+  testUpdateVerboseMode;
+    IO.println "  ✓ testUpdateVerboseMode"
 
 end TestSuite.Update

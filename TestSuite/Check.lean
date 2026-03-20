@@ -30,6 +30,14 @@ def testCheckDebugMode : IO Unit := do
     throw (IO.userError
       s!"testCheckDebugMode: expected >0 unexpected shortcuts, got {n}")
 
+/-- `runCheck` with verbose=true must still return the correct non-zero count. -/
+def testCheckVerboseMode : IO Unit := do
+  let cfg : Config := { tactics := #["decide"] }
+  let n ← runCheck #["TestSuite/Fixtures/Simple.lean"] cfg (verbose := true)
+  unless n > 0 do
+    throw (IO.userError
+      s!"testCheckVerboseMode: expected >0 unexpected shortcuts, got {n}")
+
 def runAll : IO Unit := do
   testCheckNonZeroForUnexpectedShortcuts;
     IO.println "  ✓ testCheckNonZeroForUnexpectedShortcuts"
@@ -37,5 +45,7 @@ def runAll : IO Unit := do
     IO.println "  ✓ testCheckZeroWithEmptyTactics"
   testCheckDebugMode;
     IO.println "  ✓ testCheckDebugMode"
+  testCheckVerboseMode;
+    IO.println "  ✓ testCheckVerboseMode"
 
 end TestSuite.Check

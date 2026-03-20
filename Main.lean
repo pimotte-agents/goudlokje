@@ -17,22 +17,24 @@ private def loadConfig (debug : Bool) : IO Goudlokje.Config := do
     return { tactics := #[] }
 
 private def runCheck (p : Parsed) : IO UInt32 := do
-  let debug := p.hasFlag "debug"
+  let verbose := p.hasFlag "verbose"
+  let debug   := p.hasFlag "debug" || verbose
   let cfg ← loadConfig debug
   let rawPaths := p.variableArgsAs! String
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
-  let n ← Goudlokje.runCheck paths cfg debug
+  let n ← Goudlokje.runCheck paths cfg debug verbose
   return if n == 0 then 0 else 1
 
 private def runUpdate (p : Parsed) : IO UInt32 := do
-  let debug := p.hasFlag "debug"
+  let verbose  := p.hasFlag "verbose"
+  let debug    := p.hasFlag "debug" || verbose
   let cfg ← loadConfig debug
   let rawPaths := p.variableArgsAs! String
   let paths : Array System.FilePath :=
     if rawPaths.isEmpty then #[⟨"."⟩] else rawPaths.map (⟨·⟩)
   let acceptAll := p.hasFlag "all"
-  Goudlokje.runUpdate paths cfg acceptAll debug
+  Goudlokje.runUpdate paths cfg acceptAll debug verbose
   return 0
 
 private def checkCmd : Cmd := `[Cli|
@@ -40,7 +42,8 @@ private def checkCmd : Cmd := `[Cli|
   "Check Lean worksheets for unexpected shortcuts."
 
   FLAGS:
-    debug; "Print debug information during analysis (probe counts, result statistics)"
+    debug;   "Print debug information during analysis (probe counts, result statistics)"
+    verbose; "Print all debug information plus detailed per-file probe hits"
 
   ARGS:
     ...files : String; "Lean files or directories to check (default: current directory)"
@@ -51,8 +54,9 @@ private def updateCmd : Cmd := `[Cli|
   "Update .test.json files with found shortcuts."
 
   FLAGS:
-    all;   "Accept all shortcuts and remove all stale entries without prompting"
-    debug; "Print debug information during analysis (probe counts, result statistics)"
+    all;     "Accept all shortcuts and remove all stale entries without prompting"
+    debug;   "Print debug information during analysis (probe counts, result statistics)"
+    verbose; "Print all debug information plus detailed per-file probe hits"
 
   ARGS:
     ...files : String; "Lean files or directories to update (default: current directory)"

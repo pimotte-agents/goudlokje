@@ -14,10 +14,17 @@ private def promptYN (prompt : String) : IO Bool := do
 
 /-- Run update mode: interactively (or with --all) accept shortcuts and persist them.
     Stale entries are removed (with confirmation unless --all).
-    When `debug` is true, prints additional analysis statistics per file. -/
-def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) (debug : Bool := false) : IO Unit := do
+    When `debug` is true, prints analysis statistics per file.
+    When `verbose` is true, implies `debug` and additionally lists all discovered
+    worksheets upfront and logs every individual probe hit per file. -/
+def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) (debug : Bool := false) (verbose : Bool := false) : IO Unit := do
   let worksheets ← discoverWorksheets paths
-  if debug then
+  let debugMode := debug || verbose
+  if verbose then
+    IO.println s!"Discovered {worksheets.size} worksheet(s):"
+    for ws in worksheets do
+      IO.println s!"  {ws.sourcePath}"
+  if debugMode then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
   let cache ← mkEnvCache
   for ws in worksheets do
@@ -26,8 +33,11 @@ def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) 
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
     let tf    ← TestFile.load testPath
     let cr    := classify found tf
-    if debug then
+    if debugMode then
       IO.println s!"  Found {found.size} probe result(s), {cr.shortcuts.size} shortcut(s), {cr.stale.size} stale entry/entries"
+    if verbose then
+      for pr in found do
+        IO.println s!"  Probe hit: {pr.line}:{pr.column} — `{pr.tactic}`"
 
     let mut newExpected := tf.expected
 

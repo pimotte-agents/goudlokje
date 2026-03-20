@@ -8,10 +8,17 @@ namespace Goudlokje
 
 /-- Run check mode: analyse worksheets and report any unexpected shortcuts.
     Returns the number of unexpected shortcuts found (non-zero → CI failure).
-    When `debug` is true, prints additional analysis statistics per file. -/
-def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := false) : IO Nat := do
+    When `debug` is true, prints analysis statistics per file.
+    When `verbose` is true, implies `debug` and additionally lists all discovered
+    worksheets upfront and logs every individual probe hit per file. -/
+def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := false) (verbose : Bool := false) : IO Nat := do
   let worksheets ← discoverWorksheets paths
-  if debug then
+  let debugMode := debug || verbose
+  if verbose then
+    IO.println s!"Discovered {worksheets.size} worksheet(s):"
+    for ws in worksheets do
+      IO.println s!"  {ws.sourcePath}"
+  if debugMode then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
   let cache ← mkEnvCache
   let mut unexpectedCount := 0
@@ -20,8 +27,11 @@ def runCheck (paths : Array System.FilePath) (cfg : Config) (debug : Bool := fal
     let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache)
     let tf    ← TestFile.load (ws.testPath.getD (ws.sourcePath.withExtension "test.json"))
     let cr    := classify found tf
-    if debug then
+    if debugMode then
       IO.println s!"  Found {found.size} probe result(s), {cr.shortcuts.size} shortcut(s), {cr.stale.size} stale entry/entries"
+    if verbose then
+      for pr in found do
+        IO.println s!"  Probe hit: {pr.line}:{pr.column} — `{pr.tactic}`"
     for r in cr.shortcuts do
       printShortcutResult r
       if let .unexpected _ := r then
