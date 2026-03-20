@@ -1,7 +1,7 @@
 import Goudlokje.TestFile
 import Lean.Data.Json
 
-namespace Tests.TestFile
+namespace TestSuite.TestFile
 
 open Goudlokje
 
@@ -53,4 +53,4 @@ def runAll : IO Unit := do
   testParseJson;                  IO.println "  ✓ testParseJson"
   testLoadMissingFileReturnsEmpty; IO.println "  ✓ testLoadMissingFileReturnsEmpty"
 
-end Tests.TestFile
+end TestSuite.TestFile

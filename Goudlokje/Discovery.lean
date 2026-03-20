@@ -4,7 +4,7 @@ namespace Goudlokje
 structure WorksheetEntry where
   sourcePath : System.FilePath
   testPath   : Option System.FilePath
-  deriving Repr
+  deriving Repr, Inhabited
 
 /-- Recursively collect all `.lean` files under `root`. -/
 private partial def collectLeanFiles (root : System.FilePath) : IO (Array System.FilePath) := do

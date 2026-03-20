@@ -1,7 +1,7 @@
 import Goudlokje.Config
 import Lean.Data.Json
 
-namespace Tests.Config
+namespace TestSuite.Config
 
 open Goudlokje
 
@@ -43,4 +43,4 @@ def runAll : IO Unit := do
   testUnknownFieldsIgnored;   IO.println "  ✓ testUnknownFieldsIgnored"
   testRoundTrip;              IO.println "  ✓ testRoundTrip"
 
-end Tests.Config
+end TestSuite.Config

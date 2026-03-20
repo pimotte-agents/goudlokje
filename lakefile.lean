@@ -11,14 +11,36 @@ lean_lib "Goudlokje" where
 lean_exe "goudlokje" where
   root := `Main
 
-lean_lib "Tests" where
-  roots := #[`Tests]
+lean_lib "TestSuite" where
+  roots := #[`TestSuite]
+
+-- Build fixture files so their package dependencies (Verbose, WaterproofGenre) are compiled.
+-- These oleans must be present at runtime when `analyzeFile` processes the fixture files.
+-- Note: Waterproof.lean uses #doc format with intentionally incomplete proofs, so we only
+-- build Verbose.lean here; WaterproofGenre is built via the `waterproof_fixtures` target.
+@[default_target]
+lean_lib "TestFixtures" where
+  roots := #[`TestSuite.Fixtures.Simple, `TestSuite.Fixtures.Verbose]
+
+-- FixtureDeps imports Verbose and Waterproof packages so their oleans are compiled.
+-- This ensures `analyzeFile` can import them at runtime when processing fixture files.
+@[default_target]
+lean_lib "FixtureDeps" where
+  roots := #[`FixtureDeps]
 
 lean_exe "goudlokje_tests" where
-  root := `Tests.Main
+  root := `TestSuite.Main
+  moreLinkArgs := #["-rdynamic"]
+
+lean_exe "debug_analysis" where
+  root := `DebugAnalysis
+  moreLinkArgs := #["-rdynamic"]
 
 require "leanprover" / "lean4-cli" @ git "v4.29.0-rc6"
-require "impermeable" / "waterproof-genre" @ git "feature/smaller-genre"
-require "impermeable" / "verbose-lean4" @ git "v4.29.0-rc6"
+require "waterproof-genre" 
+      from git "https://github.com/impermeable/waterproof-genre" @ "feature/smaller-genre"
+require "verbose-lean4"
+      from git "https://github.com/impermeable/verbose-lean4" @ "update/v4.29.0-rc6"
+
 
 

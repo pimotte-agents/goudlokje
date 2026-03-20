@@ -9,7 +9,7 @@ inductive ShortcutResult where
   | unexpected (r : ProbeResult)
   /-- Shortcut found and listed in the test file — OK. -/
   | expected   (r : ProbeResult)
-  deriving Repr
+  deriving Repr, Inhabited
 
 /-- Listed in the test file but the tactic no longer closes the goal — warning. -/
 structure StaleEntry where

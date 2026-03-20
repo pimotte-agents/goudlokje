@@ -19,6 +19,7 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
   - `goudlokje update [--all] [files...]`
 - [x] Return a non-zero exit code on any error or shortcut found in `check` mode
 - [x] Write unit tests for config parsing (valid config, missing fields, unknown fields) — `Tests/Config.lean`
+- [ ] Document how to run automated tests in README
 
 **Notes:** `lean4-cli` added as explicit dependency in `lakefile.lean`. Config lives in `Goudlokje/Config.lean`.
 

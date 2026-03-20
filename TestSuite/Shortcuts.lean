@@ -1,6 +1,6 @@
 import Goudlokje.Shortcuts
 
-namespace Tests.Shortcuts
+namespace TestSuite.Shortcuts
 
 open Goudlokje
 
@@ -89,4 +89,4 @@ def runAll : IO Unit := do
   testMatchRequiresAllFields;   IO.println "  ✓ testMatchRequiresAllFields"
   testMultipleStale;            IO.println "  ✓ testMultipleStale"
 
-end Tests.Shortcuts
+end TestSuite.Shortcuts
