@@ -10,6 +10,7 @@ lean_lib "Goudlokje" where
 @[default_target]
 lean_exe "goudlokje" where
   root := `Main
+  moreLinkArgs := #["-rdynamic"]
 
 lean_lib "TestSuite" where
   roots := #[`TestSuite]

@@ -182,7 +182,9 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ## Remaining work
 
-- None. All planned milestones complete.
+- [x] When executing goudlokje on another project, I get 0 probe results for each file, even if there are contents.
+  - **Root cause:** The `goudlokje` lean_exe was missing `moreLinkArgs := #["-rdynamic"]`. Without this flag, `unsafe Lean.enableInitializersExecution` does not export runtime symbols needed for Lean's tactic elaboration, causing all `tryTacticAt` calls to fail silently and return 0 results.
+  - **Fix:** Added `moreLinkArgs := #["-rdynamic"]` to the `goudlokje` executable target in `lakefile.lean`, matching the existing `goudlokje_tests` and `debug_analysis` targets.
 
 ---
 
