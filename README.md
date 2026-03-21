@@ -56,13 +56,15 @@ Create a `.goudlokje.json` file at the root of your project:
 
 ```json
 {
-  "tactics": ["decide", "tauto", "omega"]
+  "tactics": ["decide", "tauto", "omega"],
+  "filterVerboseSteps": false
 }
 ```
 
-| Field     | Type            | Description                                              |
-|-----------|-----------------|----------------------------------------------------------|
-| `tactics` | array of string | Tactic expressions to probe at every goal in every proof |
+| Field                | Type            | Default | Description                                                                                                   |
+|----------------------|-----------------|---------|---------------------------------------------------------------------------------------------------------------|
+| `tactics`            | array of string | `[]`    | Tactic expressions to probe at every goal in every proof                                                      |
+| `filterVerboseSteps` | bool            | `false` | When `true`, only the first tactic in each Lean Verbose step body is probed, suppressing sub-step noise       |
 
 If `.goudlokje.json` is absent, Goudlokje runs with no probe tactics (no shortcuts can be found).
 
@@ -81,9 +83,14 @@ goudlokje check Exercises/ Solutions/Sheet1.lean
 
 # Print debug information (probe counts, result statistics)
 goudlokje check --debug Exercises/
+
+# Print per-probe verbose output (implies --debug)
+goudlokje check --verbose Exercises/
 ```
 
 Exits **0** if no unexpected shortcuts are found, **1** otherwise.
+
+> **Tip:** Always invoke Goudlokje via `lake exe goudlokje` so that Lake sets up the Lean search path correctly for all project imports. Running the binary directly may cause imports to fail silently and produce 0 results. In `--debug` mode a warning is printed when no tactic positions are found in a file.
 
 ### `update` — record expected shortcuts
 
@@ -96,6 +103,9 @@ goudlokje update --all Exercises/
 
 # With debug output
 goudlokje update --debug --all Exercises/
+
+# With per-probe verbose output
+goudlokje update --verbose --all Exercises/
 ```
 
 `update` reads existing `.test.json` files, shows new shortcuts and stale entries, and writes the updated file back to disk.
