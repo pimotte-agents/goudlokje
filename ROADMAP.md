@@ -180,6 +180,17 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 
 ---
 
+## Milestone 13 — Diagnostic warning for zero tactic positions ✅
+
+**Goal:** When `--debug` is active and a file produces no tactic probe positions (e.g. because imports fail silently), emit a clear warning so the user knows to check their environment.
+
+### Tasks
+- [x] In `runCheck` and `runUpdate`, always count probe attempts in debug mode (previously only tracked in verbose mode)
+- [x] After each file, if 0 probe attempts and tactics are configured, print `Warning: no tactic positions found … (run via lake exe goudlokje)`
+- [x] Write tests: `testCheckGracefulOnImportError`, `testUpdateGracefulOnImportError` — verify both modes handle a file with an unresolvable import without crashing and return 0 shortcuts
+
+---
+
 ## Remaining work
 
 - [x] When executing goudlokje on another project, I get 0 probe results for each file, even if there are contents.

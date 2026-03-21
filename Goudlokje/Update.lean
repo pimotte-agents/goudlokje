@@ -29,11 +29,15 @@ def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) 
   let cache ← mkEnvCache
   for ws in worksheets do
     IO.println s!"Updating {ws.sourcePath}..."
+    -- Count every probe attempt (success or failure) so we can warn when nothing is probed.
+    let probeAttempts ← IO.mkRef (0 : Nat)
     let probeLog : Option (Nat → Nat → String → Bool → IO Unit) :=
-      if verbose then
-        some fun line col tactic succeeded =>
-          let mark := if succeeded then "✓" else "✗"
-          IO.println s!"  Probe {mark} {line}:{col} — `{tactic}`"
+      if debugMode then
+        some fun line col tactic succeeded => do
+          probeAttempts.modify (· + 1)
+          if verbose then
+            let mark := if succeeded then "✓" else "✗"
+            IO.println s!"  Probe {mark} {line}:{col} — `{tactic}`"
       else none
     let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
@@ -41,6 +45,9 @@ def runUpdate (paths : Array System.FilePath) (cfg : Config) (acceptAll : Bool) 
     let cr    := classify found tf
     if debugMode then
       IO.println s!"  Found {found.size} probe result(s), {cr.shortcuts.size} shortcut(s), {cr.stale.size} stale entry/entries"
+      let attempts ← probeAttempts.get
+      if attempts == 0 && !cfg.tactics.isEmpty then
+        IO.println s!"  Warning: no tactic positions found in {ws.sourcePath} — verify all imports are available (run via `lake exe goudlokje`)"
 
     let mut newExpected := tf.expected
 

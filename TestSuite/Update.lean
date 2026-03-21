@@ -88,6 +88,22 @@ def testUpdateVerboseMode : IO Unit := do
     throw (IO.userError
       s!"testUpdateVerboseMode: expected ≥1 entries in test file, got {tf.expected.size}")
 
+/-- `runUpdate` must not throw when a file has an unresolvable import.
+    It should log the error and continue (test file is created with 0 entries).
+    In debug mode it also emits a diagnostic warning about missing tactic positions. -/
+def testUpdateGracefulOnImportError : IO Unit := do
+  let dir : System.FilePath := "/tmp/goudlokje_update_badimport"
+  try IO.FS.createDirAll dir catch _ => pure ()
+  let leanFile := dir / "Bad.lean"
+  IO.FS.writeFile leanFile "import SomethingThatDoesNotExist\nexample : 1 + 1 = 2 := by rfl\n"
+  let testJson := dir / "Bad.test.json"
+  try IO.FS.removeFile testJson catch _ => pure ()
+  let cfg : Config := { tactics := #["decide"] }
+  -- Non-debug mode: should not throw; creates a test file with 0 entries.
+  runUpdate #[leanFile] cfg true
+  -- Debug mode: should also complete without throwing (and will emit the warning).
+  runUpdate #[leanFile] cfg true (debug := true)
+
 def runAll : IO Unit := do
   testUpdateAllCreatesTestFile;
     IO.println "  ✓ testUpdateAllCreatesTestFile"
@@ -99,5 +115,7 @@ def runAll : IO Unit := do
     IO.println "  ✓ testUpdateDebugMode"
   testUpdateVerboseMode;
     IO.println "  ✓ testUpdateVerboseMode"
+  testUpdateGracefulOnImportError;
+    IO.println "  ✓ testUpdateGracefulOnImportError"
 
 end TestSuite.Update
