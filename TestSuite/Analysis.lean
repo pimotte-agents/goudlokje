@@ -51,6 +51,19 @@ def testDetectsDecideShortcutInWaterproofFile : IO Unit := do
     throw (IO.userError
       "testWaterproof: expected tactic 'decide' in results")
 
+/-- Integration test: verify that `analyzeFile` detects `decide` as a shortcut
+    in a file using both WaterproofGenre `#doc` blocks and Lean Verbose tactics.
+    This combination is the typical usage in external Waterproof exercise projects. -/
+def testDetectsDecideShortcutInVerboseWaterproofFile : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseWaterproof.lean"
+  let results ← analyzeFile fixturePath #["decide"]
+  unless results.size ≥ 1 do
+    throw (IO.userError
+      s!"testVerboseWaterproof: expected ≥1 probe result, got {results.size}")
+  unless results.any (fun r => r.tactic == "decide") do
+    throw (IO.userError
+      "testVerboseWaterproof: expected tactic 'decide' in results")
+
 /-- Integration test: verify that `analyzeFile` never returns duplicate results.
     The same (file, line, column, tactic) must appear at most once. -/
 def testNoDuplicateResults : IO Unit := do
@@ -169,6 +182,8 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testDetectsDecideShortcutInVerboseFile"
   testDetectsDecideShortcutInWaterproofFile;
                              IO.println "  ✓ testDetectsDecideShortcutInWaterproofFile"
+  testDetectsDecideShortcutInVerboseWaterproofFile;
+                             IO.println "  ✓ testDetectsDecideShortcutInVerboseWaterproofFile"
   testVerboseFilterReducesResults;
                              IO.println "  ✓ testVerboseFilterReducesResults"
   testVerboseFilterKeepsFirstPerStep;

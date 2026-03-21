@@ -185,6 +185,8 @@ Goudlokje is a Lean 4 CLI tool that helps teachers verify that worksheet exercis
 - [x] When executing goudlokje on another project, I get 0 probe results for each file, even if there are contents.
   - **Root cause:** The `goudlokje` lean_exe was missing `moreLinkArgs := #["-rdynamic"]`. Without this flag, `unsafe Lean.enableInitializersExecution` does not export runtime symbols needed for Lean's tactic elaboration, causing all `tryTacticAt` calls to fail silently and return 0 results.
   - **Fix:** Added `moreLinkArgs := #["-rdynamic"]` to the `goudlokje` executable target in `lakefile.lean`, matching the existing `goudlokje_tests` and `debug_analysis` targets.
+- [x] When executing goudlokje on another project, I get verbose output of the probe, but in the end probe results are still 0 and all of them fail, while I expect one to succeed.
+        **Investigation:** Added fixture `TestSuite/Fixtures/VerboseWaterproof.lean` combining both `Verbose.English.All` and `WaterproofGenre` (`#doc` block with Verbose step tactics). Test `testDetectsDecideShortcutInVerboseWaterproofFile` passes: `decide`, `norm_num`, `omega`, `tauto`, `simp` all probe correctly inside `#doc` code blocks that use Verbose step boundaries. The combination works when run via `lake exe` (which sets `LEAN_PATH` correctly). If probes fail in an external project, ensure the tool is invoked via `lake exe goudlokje` so that all Lake package `.olean` files are on the search path.
 
 ---
 
