@@ -16,8 +16,52 @@ structure ProbeResult where
   tactic : String
   deriving Repr, BEq, Inhabited
 
+/-- Return true if this `TacticInfo` is a synthetic container or proof-scaffolding
+    tactic that does not correspond to a user-written proof step.
+
+    Several sources generate such nodes:
+
+    1. **The `by` block itself** (`Lean.Parser.Term.byTactic`): Lean's term
+       elaborator calls `withTacticInfoContext` on the `by` expression, producing
+       a `TacticInfo` whose `goalsBefore` equals the theorem's initial goal.
+       A probe tactic that closes that goal would appear here — but the student
+       must write *some* proof regardless, so this is never a real shortcut.
+
+    2. **Tactic sequence containers** (`Lean.Parser.Tactic.tacticSeq`,
+       `Lean.Parser.Tactic.tacticSeq1Indented`): wrapper nodes that span an
+       entire tactic block; the individual child tactics already produce their
+       own `TacticInfo` nodes.
+
+    3. **Lean Verbose `Exercise`/`Example` proof wrappers**
+       (`Verbose.English.withSuggestions`, `Verbose.French.withSuggestions`,
+       `withoutSuggestions`): `mkExercise` expands to
+       `example … := by with(out)_suggestions%$tkp <proof>; done`
+       where `tkp` is the `Proof:` token.  The `%$tkp` annotation gives the
+       wrapper tactic a source position pointing at `Proof:` and `goalsBefore`
+       equal to the exercise conclusion, making it indistinguishable from the
+       first proof step without this filter.
+
+    Kind names discovered empirically:
+    - `Lean.Parser.Term.byTactic` — Lean core `by` block (as a term)
+    - `by`                         — `by` as a tactic-level syntax node
+    - `Lean.Parser.Tactic.tacticSeq` / `tacticSeq1Indented` — sequence containers
+    - `Verbose.English.withSuggestions` — Verbose/English/Widget.lean
+    - `Verbose.French.withSuggestions`  — Verbose/French/Widget.lean
+    - `withoutSuggestions`              — Verbose/Tactics/Statements.lean -/
+private def isSyntheticTacticContainer (ti : TacticInfo) : Bool :=
+  let k := ti.stx.getKind.toString
+  k == "Lean.Parser.Term.byTactic"                ||
+  k == "by"                                       ||
+  k == "Lean.Parser.Tactic.tacticSeq"             ||
+  k == "Lean.Parser.Tactic.tacticSeq1Indented"    ||
+  k == "Verbose.English.withSuggestions"           ||
+  k == "Verbose.French.withSuggestions"            ||
+  k == "withoutSuggestions"
+
 /-- Collect (ContextInfo, TacticInfo) pairs from an InfoTree.
-    We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`. -/
+    We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`.
+    Synthetic container nodes (`by` blocks, tactic sequences, Verbose proof wrappers)
+    are excluded via `isSyntheticTacticContainer`. -/
 private partial def collectTacticInfos
     (ci? : Option ContextInfo) (tree : InfoTree)
     (acc : Array (ContextInfo × TacticInfo)) : Array (ContextInfo × TacticInfo) :=
@@ -28,7 +72,7 @@ private partial def collectTacticInfos
   | .node info children =>
     let acc' := match ci?, info with
       | some ci, .ofTacticInfo ti =>
-        if !ti.goalsBefore.isEmpty then acc.push (ci, ti) else acc
+        if !ti.goalsBefore.isEmpty && !isSyntheticTacticContainer ti then acc.push (ci, ti) else acc
       | _, _ => acc
     children.foldl (fun a c => collectTacticInfos ci? c a) acc'
   | .hole _ => acc

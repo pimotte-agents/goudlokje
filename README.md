@@ -68,6 +68,8 @@ Create a `.goudlokje.json` file at the root of your project:
 
 **Shortcut semantics:** A probe tactic only counts as a shortcut if it can close the goal at a position that is *not* the last step of its proof. Shortcuts at the final proof step are never reported — the student must still write that step, so it saves no lines. This means single-step proofs never produce shortcuts.
 
+**Lean Verbose `Exercise`/`Example` blocks:** Goudlokje automatically ignores synthetic tactic containers (`by` blocks, tactic-sequence wrappers, and the `with_suggestions`/`without_suggestions` wrappers inserted by the Verbose `Exercise`/`Example` command at the `Proof:` token position). Only the individual user-written tactics inside the `Proof: … QED` body are probed. This filtering is always active; no configuration is needed.
+
 > **Example:** A two-line proof `step1; step2` reports a shortcut only if a probe closes the goal at `step1` (saving `step2`). If the probe also happens to work at `step2`, that is *not* reported since the student must write that line anyway.
 
 If `.goudlokje.json` is absent, Goudlokje runs with no probe tactics (no shortcuts can be found).

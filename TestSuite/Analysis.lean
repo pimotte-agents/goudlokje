@@ -169,17 +169,17 @@ def testVerboseFilterRespectsDeclarationBoundaries : IO Unit := do
   -- Decl 2 (no step boundaries) has `norm_num` at line 20.
   -- Without filter: decide must be found at decl 2's `constructor` (line 20).
   let withoutFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := false)
-  unless withoutFilter.any (fun r => r.line == 20) do
+  unless withoutFilter.any (fun r => r.line == 21) do
     throw (IO.userError
       "testVerboseFilterRespectsDeclarationBoundaries: fixture sanity check failed \
-       — expected decide shortcut at line 20 (constructor, unfiltered)")
+       — expected decide shortcut at line 21 (constructor, unfiltered)")
   -- With filter: decl 2 has no step boundaries, so filterVerboseSteps must NOT suppress it.
-  -- (skip-last removes `all_goals norm_num` at line 21 but keeps `constructor` at line 20.)
+  -- (skip-last removes `all_goals norm_num` at line 22 but keeps `constructor` at line 21.)
   let withFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
-  unless withFilter.any (fun r => r.line == 20) do
+  unless withFilter.any (fun r => r.line == 21) do
     throw (IO.userError
       "testVerboseFilterRespectsDeclarationBoundaries: filterVerboseSteps incorrectly \
-       suppressed shortcuts in a declaration with no step boundaries (line 20)")
+       suppressed shortcuts in a declaration with no step boundaries (line 21)")
   -- Sanity: filter still reduces the overall count (decl 1's step filtering works).
   unless withFilter.size < withoutFilter.size do
     throw (IO.userError
@@ -218,6 +218,23 @@ def testSkipLastTacticNotReported : IO Unit := do
       s!"testSkipLastTacticNotReported: expected exactly 1 shortcut (last step skipped), \
         got {results.size}")
 
+/-- Regression test: the `Exercise`/`Example` Verbose command wraps the `Proof:` body
+    in `with(out)_suggestions%$tkp` where `tkp` is the `Proof:` token.  This generates
+    a `TacticInfo` node at the `Proof:` position with a non-empty goal, which must NOT
+    be treated as a user-written proof step and must NOT be probed.
+
+    The fixture uses an `Exercise` with a 2-tactic proof and no step boundaries
+    (so `filterVerboseSteps` does not help).  After filtering the wrapper and
+    applying skip-last, exactly 1 shortcut remains (the `show` step).
+    Without the fix, 2 shortcuts are reported (wrapper@Proof: + show). -/
+def testVerboseExerciseDoesNotProbeBeforeProof : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseExercise.lean"
+  let results ← analyzeFile fixturePath #["decide"]
+  unless results.size == 1 do
+    throw (IO.userError
+      s!"testVerboseExerciseDoesNotProbeBeforeProof: expected 1 shortcut \
+        (proof wrapper at Proof: must not be probed), got {results.size}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
@@ -246,5 +263,7 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testOnProbeSuccessCountMatchesResults"
   testSkipLastTacticNotReported;
                              IO.println "  ✓ testSkipLastTacticNotReported"
+  testVerboseExerciseDoesNotProbeBeforeProof;
+                             IO.println "  ✓ testVerboseExerciseDoesNotProbeBeforeProof"
 
 end TestSuite.Analysis
