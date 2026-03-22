@@ -66,6 +66,10 @@ Create a `.goudlokje.json` file at the root of your project:
 | `tactics`            | array of string | `[]`    | Tactic expressions to probe at every goal in every proof                                                      |
 | `filterVerboseSteps` | bool            | `false` | When `true`, only the first tactic in each Lean Verbose step body is probed, suppressing sub-step noise       |
 
+**Shortcut semantics:** A probe tactic only counts as a shortcut if it can close the goal at a position that is *not* the last step of its proof. Shortcuts at the final proof step are never reported — the student must still write that step, so it saves no lines. This means single-step proofs never produce shortcuts.
+
+> **Example:** A two-line proof `step1; step2` reports a shortcut only if a probe closes the goal at `step1` (saving `step2`). If the probe also happens to work at `step2`, that is *not* reported since the student must write that line anyway.
+
 If `.goudlokje.json` is absent, Goudlokje runs with no probe tactics (no shortcuts can be found).
 
 ---

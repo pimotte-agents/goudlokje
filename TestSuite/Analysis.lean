@@ -90,15 +90,16 @@ def testVerboseFilterReducesResults : IO Unit := do
       s!"testVerboseFilter: expected filter to reduce shortcut count, \
         got unfiltered={withoutFilter.size} filtered={withFilter.size}")
 
-/-- Verbose step filtering: the filtered result contains exactly one shortcut
-    per step (at the first tactic, `show`), suppressing `norm_num` sub-step noise. -/
+/-- Verbose step filtering: the filtered result keeps only the first tactic per step,
+    then skip-last removes the final step's position.  The fixture has 2 steps with
+    `show` as the first tactic each; after filtering and skip-last, only step 1 remains. -/
 def testVerboseFilterKeepsFirstPerStep : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiStep.lean"
   let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
-  -- The fixture has 2 steps, each with `show` as the first tactic → 2 shortcuts expected
-  unless results.size == 2 do
+  -- 2 steps → filter keeps show@step1 and show@step2 → skip-last removes show@step2 → 1 shortcut
+  unless results.size == 1 do
     throw (IO.userError
-      s!"testVerboseFilterKeepsFirstPerStep: expected 2 shortcuts (one per step), \
+      s!"testVerboseFilterKeepsFirstPerStep: expected 1 shortcut (step 1 only; step 2 is last), \
         got {results.size}")
 
 /-- Environment cache: analyzing the same file twice with a shared cache
@@ -166,13 +167,14 @@ def testOnProbeCallbackIncludesFailures : IO Unit := do
 def testVerboseFilterRespectsDeclarationBoundaries : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiDecl.lean"
   -- Decl 2 (no step boundaries) has `norm_num` at line 20.
-  -- Without filter: decide must be found there (fixture sanity check).
+  -- Without filter: decide must be found at decl 2's `constructor` (line 20).
   let withoutFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := false)
   unless withoutFilter.any (fun r => r.line == 20) do
     throw (IO.userError
       "testVerboseFilterRespectsDeclarationBoundaries: fixture sanity check failed \
-       — expected decide shortcut at line 20 (unfiltered)")
-  -- With filter: decl 2 has no step boundaries, so its tactics must NOT be suppressed.
+       — expected decide shortcut at line 20 (constructor, unfiltered)")
+  -- With filter: decl 2 has no step boundaries, so filterVerboseSteps must NOT suppress it.
+  -- (skip-last removes `all_goals norm_num` at line 21 but keeps `constructor` at line 20.)
   let withFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
   unless withFilter.any (fun r => r.line == 20) do
     throw (IO.userError
@@ -200,6 +202,22 @@ def testOnProbeSuccessCountMatchesResults : IO Unit := do
     throw (IO.userError
       s!"testOnProbeSuccessCount: successes={succs} < results={results.size}")
 
+/-- Regression test for the mwe exercise 1.1.13 issue: a probe tactic that can close
+    the goal at the LAST step of a proof must not be reported as a shortcut.
+    A shortcut at the final step does not save any proof lines — the student still
+    has to write that step — so reporting it is a false positive.
+    The fixture has exactly 2 tactic positions (one per Verbose step) after filtering;
+    skip-last removes the second → exactly 1 shortcut remains. -/
+def testSkipLastTacticNotReported : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/SkipLastStep.lean"
+  -- filterVerboseSteps reduces the fixture to exactly 2 positions (one per step);
+  -- skip-last then removes the last → 1 shortcut at step 1.
+  let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  unless results.size == 1 do
+    throw (IO.userError
+      s!"testSkipLastTacticNotReported: expected exactly 1 shortcut (last step skipped), \
+        got {results.size}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
@@ -226,5 +244,7 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testOnProbeCallbackIncludesFailures"
   testOnProbeSuccessCountMatchesResults;
                              IO.println "  ✓ testOnProbeSuccessCountMatchesResults"
+  testSkipLastTacticNotReported;
+                             IO.println "  ✓ testSkipLastTacticNotReported"
 
 end TestSuite.Analysis

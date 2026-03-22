@@ -131,6 +131,39 @@ private def applyVerboseStepFilter
       groups.reverse.foldl (fun acc (_, items) => acc ++ filterGroup items.reverse) []
     allResults.toArray
 
+/-- For each declaration in `infos`, drop the last tactic position (by source order).
+    A shortcut at the final step of a proof never saves proof lines — the student
+    must still write that step (or an equivalent).  Skipping it avoids false positives
+    where a probe tactic can close the goal at the last line of an exercise.
+
+    Grouping follows the same consecutive-`parentDecl?` logic as `applyVerboseStepFilter`:
+    tactics are grouped by consecutive runs sharing the same `parentDecl?` so that
+    anonymous `example` blocks, which share `parentDecl? = none`, are correctly
+    separated when each is processed in its own InfoTree. -/
+private def skipLastPerDeclaration
+    (infos : Array (ContextInfo × TacticInfo)) (fileMap : FileMap) :
+    Array (ContextInfo × TacticInfo) :=
+  let withPos := infos.map fun (ci, ti) =>
+    (fileMap.toPosition (ti.stx.getPos?.getD 0), ci, ti)
+  let sorted := withPos.toList.mergeSort (fun (p1, _, _) (p2, _, _) =>
+    p1.line < p2.line || (p1.line == p2.line && p1.column < p2.column))
+  let groups : List (Option Name × List (ContextInfo × TacticInfo)) :=
+    sorted.foldl (fun acc (_, ci, ti) =>
+      let decl := ci.parentDecl?
+      match acc with
+      | [] => [(decl, [(ci, ti)])]
+      | (d, items) :: rest =>
+        if d == decl then (d, (ci, ti) :: items) :: rest
+        else (decl, [(ci, ti)]) :: acc)
+      []
+  -- groups is in reverse source order; items within each group are also reversed.
+  -- Restore source order and drop the last tactic of each group.
+  let allResults :=
+    groups.reverse.foldl (fun acc (_, items) =>
+      acc ++ items.reverse.dropLast)
+      []
+  allResults.toArray
+
 /-- Collect all unique syntax kind names from TacticInfo nodes in a file.
     Useful for debugging and discovering kind names for Verbose/Waterproof tactics. -/
 def collectTacticKinds (filePath : System.FilePath) : IO (Array String) := do
@@ -228,18 +261,19 @@ def analyzeFile
   -- Resolve any pending lazy assignments
   let assignment := finalState.commandState.infoState.assignment
   let resolvedTrees := allTrees.map fun t => t.substitute assignment
-  -- Optionally restrict to first-in-step positions for Lean Verbose proofs.
-  -- The filter is applied per InfoTree so that step-boundary state does not leak
-  -- across independent commands (e.g. two anonymous `example`s in the same file
-  -- each produce their own InfoTree and must be filtered in isolation).
-  -- Within each tree, `applyVerboseStepFilter` further groups by `parentDecl?` to
-  -- isolate named declarations that share a tree (e.g. exercises inside a `#doc` block).
+  -- Build tactic info per tree so that step-boundary state and skip-last logic
+  -- do not leak across independent commands.  Each tree corresponds to one
+  -- top-level command (e.g. one `example`, one `theorem`, or one `#doc` block).
+  -- Within each tree, `applyVerboseStepFilter` groups by `parentDecl?` to isolate
+  -- named declarations that share a tree (e.g. exercises inside a `#doc` block).
+  -- `skipLastPerDeclaration` is always applied after optional verbose filtering:
+  -- a shortcut at the final step of a proof never saves proof lines.
   let tacticInfos :=
-    if filterVerboseSteps then
-      resolvedTrees.foldl (fun acc t =>
-        acc ++ applyVerboseStepFilter (collectTacticInfos none t #[]) inputCtx.fileMap) #[]
-    else
-      resolvedTrees.foldl (fun acc t => collectTacticInfos none t acc) #[]
+    resolvedTrees.foldl (fun acc t =>
+      let raw := collectTacticInfos none t #[]
+      let filtered :=
+        if filterVerboseSteps then applyVerboseStepFilter raw inputCtx.fileMap else raw
+      acc ++ skipLastPerDeclaration filtered inputCtx.fileMap) #[]
   -- Probe each goal at each tactic step
   let mut results : Array ProbeResult := #[]
   for (ci, ti) in tacticInfos do
