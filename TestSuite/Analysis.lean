@@ -158,6 +158,32 @@ def testOnProbeCallbackIncludesFailures : IO Unit := do
     throw (IO.userError
       s!"testOnProbeCallbackIncludesFailures: expected >0 callbacks for failures, got {total}")
 
+/-- Verbose step filtering must reset per declaration.
+    A declaration WITHOUT step boundaries must keep all its tactics even when
+    a preceding declaration in the same file DOES have step boundaries.
+    Without this, the filter's state leaks across declarations and suppresses
+    shortcuts in non-Verbose exercises. -/
+def testVerboseFilterRespectsDeclarationBoundaries : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiDecl.lean"
+  -- Decl 2 (no step boundaries) has `norm_num` at line 20.
+  -- Without filter: decide must be found there (fixture sanity check).
+  let withoutFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := false)
+  unless withoutFilter.any (fun r => r.line == 20) do
+    throw (IO.userError
+      "testVerboseFilterRespectsDeclarationBoundaries: fixture sanity check failed \
+       — expected decide shortcut at line 20 (unfiltered)")
+  -- With filter: decl 2 has no step boundaries, so its tactics must NOT be suppressed.
+  let withFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  unless withFilter.any (fun r => r.line == 20) do
+    throw (IO.userError
+      "testVerboseFilterRespectsDeclarationBoundaries: filterVerboseSteps incorrectly \
+       suppressed shortcuts in a declaration with no step boundaries (line 20)")
+  -- Sanity: filter still reduces the overall count (decl 1's step filtering works).
+  unless withFilter.size < withoutFilter.size do
+    throw (IO.userError
+      s!"testVerboseFilterRespectsDeclarationBoundaries: expected filter to reduce overall \
+        count, got unfiltered={withoutFilter.size} filtered={withFilter.size}")
+
 /-- The number of successful onProbe callbacks equals the number of (deduplicated)
     probe results returned by analyzeFile. -/
 def testOnProbeSuccessCountMatchesResults : IO Unit := do
@@ -188,6 +214,8 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testVerboseFilterReducesResults"
   testVerboseFilterKeepsFirstPerStep;
                              IO.println "  ✓ testVerboseFilterKeepsFirstPerStep"
+  testVerboseFilterRespectsDeclarationBoundaries;
+                             IO.println "  ✓ testVerboseFilterRespectsDeclarationBoundaries"
   testEnvCacheReturnsSameResults;
                              IO.println "  ✓ testEnvCacheReturnsSameResults"
   testEnvCacheReusedAcrossFiles;

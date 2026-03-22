@@ -76,10 +76,14 @@ private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
   k == "tacticLet'sNowProveThat_"   ||
   k == "tacticLet'sProveThat_Works_"
 
-/-- When `filterVerboseSteps` is true, keep only:
-    - Non-boundary tactics that are the FIRST tactic in their Verbose step body.
-    Tactics before any step boundary, and step boundary tactics themselves, are dropped.
-    This suppresses sub-step noise: shortcuts at intermediate positions within a step. -/
+/-- When `filterVerboseSteps` is true, keep only the first non-boundary tactic per
+    Verbose step, within each declaration.  Declarations without any step boundary
+    keep ALL their tactics (they are not Verbose-style and must not be suppressed).
+
+    Filtering is applied per-declaration (grouped by `parentDecl?`) so that filter
+    state does not leak across independent theorems and exercises.  Without this
+    isolation, a Verbose-style example earlier in the file would cause the filter to
+    suppress all tactics in a later exercise that has no step boundaries of its own. -/
 private def applyVerboseStepFilter
     (infos : Array (ContextInfo × TacticInfo)) (fileMap : FileMap) :
     Array (ContextInfo × TacticInfo) :=
@@ -91,22 +95,41 @@ private def applyVerboseStepFilter
       (fileMap.toPosition (ti.stx.getPos?.getD 0), ci, ti)
     let sorted := withPos.toList.mergeSort (fun (p1, _, _) (p2, _, _) =>
       p1.line < p2.line || (p1.line == p2.line && p1.column < p2.column))
-    -- Walk the sorted list: keep only the first non-boundary per step.
-    -- State: (result, inStep, stepGotFirst)
-    let (result, _, _) := sorted.foldl
-      (fun (acc : Array (ContextInfo × TacticInfo) × Bool × Bool) (_, ci, ti) =>
-        let (result, inStep, stepGotFirst) := acc
-        if isVerboseStepBoundary ti then
-          -- New step: reset tracking; boundary itself is not kept
-          (result, true, false)
-        else if inStep && !stepGotFirst then
-          -- First tactic in this step body: keep it
-          (result.push (ci, ti), true, true)
-        else
-          -- Before any boundary, or subsequent within step: suppress
-          (result, inStep, stepGotFirst))
-      (#[], false, false)
-    result
+    -- Group consecutive tactics by enclosing declaration (parentDecl?).
+    -- foldl over the sorted list accumulates groups in reverse with items within
+    -- each group also reversed; we reverse both at the end to restore source order.
+    let groups : List (Option Name × List (ContextInfo × TacticInfo)) :=
+      sorted.foldl (fun acc (_, ci, ti) =>
+        let decl := ci.parentDecl?
+        match acc with
+        | [] => [(decl, [(ci, ti)])]
+        | (d, items) :: rest =>
+          if d == decl then (d, (ci, ti) :: items) :: rest
+          else (decl, [(ci, ti)]) :: acc)
+        []
+    -- For each group: if the group has step boundaries, apply the step filter
+    -- (keep only the first non-boundary tactic per step).  Otherwise keep all
+    -- (the declaration is not a Verbose-style proof).
+    let filterGroup (items : List (ContextInfo × TacticInfo)) :
+        List (ContextInfo × TacticInfo) :=
+      if !items.any (fun (_, ti) => isVerboseStepBoundary ti) then
+        items  -- No step boundaries in this declaration → keep all
+      else
+        let (result, _, _) := items.foldl
+          (fun (acc : Array (ContextInfo × TacticInfo) × Bool × Bool) (ci, ti) =>
+            let (result, inStep, stepGotFirst) := acc
+            if isVerboseStepBoundary ti then
+              (result, true, false)
+            else if inStep && !stepGotFirst then
+              (result.push (ci, ti), true, true)
+            else
+              (result, inStep, stepGotFirst))
+          (#[], false, false)
+        result.toList
+    -- Reverse groups and items to restore source order, apply filter to each group
+    let allResults : List (ContextInfo × TacticInfo) :=
+      groups.reverse.foldl (fun acc (_, items) => acc ++ filterGroup items.reverse) []
+    allResults.toArray
 
 /-- Collect all unique syntax kind names from TacticInfo nodes in a file.
     Useful for debugging and discovering kind names for Verbose/Waterproof tactics. -/
@@ -172,7 +195,10 @@ def analyzeFile
     (envCache : Option EnvCache := none)
     (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
     IO (Array ProbeResult) := do
-  -- Ensure the Lean stdlib .olean files are findable at runtime
+  -- Ensure the Lean stdlib .olean files are findable at runtime.
+  -- `initSearchPath` also calls `addSearchPathFromEnv` which picks up the
+  -- `LEAN_PATH` that Lake sets before running the binary, making imports from
+  -- project dependencies (e.g. WaterproofGenre, Verbose) available.
   Lean.initSearchPath (← Lean.findSysroot)
   -- Allow [init] declarations to be executed when importing modules
   unsafe Lean.enableInitializersExecution
@@ -202,14 +228,18 @@ def analyzeFile
   -- Resolve any pending lazy assignments
   let assignment := finalState.commandState.infoState.assignment
   let resolvedTrees := allTrees.map fun t => t.substitute assignment
-  let allTacticInfos : Array (ContextInfo × TacticInfo) :=
-    resolvedTrees.foldl (fun acc t => collectTacticInfos none t acc) #[]
-  -- Optionally restrict to first-in-step positions for Lean Verbose proofs
+  -- Optionally restrict to first-in-step positions for Lean Verbose proofs.
+  -- The filter is applied per InfoTree so that step-boundary state does not leak
+  -- across independent commands (e.g. two anonymous `example`s in the same file
+  -- each produce their own InfoTree and must be filtered in isolation).
+  -- Within each tree, `applyVerboseStepFilter` further groups by `parentDecl?` to
+  -- isolate named declarations that share a tree (e.g. exercises inside a `#doc` block).
   let tacticInfos :=
     if filterVerboseSteps then
-      applyVerboseStepFilter allTacticInfos inputCtx.fileMap
+      resolvedTrees.foldl (fun acc t =>
+        acc ++ applyVerboseStepFilter (collectTacticInfos none t #[]) inputCtx.fileMap) #[]
     else
-      allTacticInfos
+      resolvedTrees.foldl (fun acc t => collectTacticInfos none t acc) #[]
   -- Probe each goal at each tactic step
   let mut results : Array ProbeResult := #[]
   for (ci, ti) in tacticInfos do
