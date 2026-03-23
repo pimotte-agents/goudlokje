@@ -1,11 +1,11 @@
--- Fixture for testing that filterVerboseSteps resets per declaration.
--- Declaration 1 uses Verbose step boundaries; Declaration 2 does not.
+-- Fixture: VerboseMultiDecl — one Verbose-style declaration and one plain declaration.
+-- Expected `decide` shortcuts: line 11 (Decl 1, with filter) and line 21 (Decl 2, always).
 import Verbose.English.All
 
 set_option linter.unusedTactic false
 
--- Decl 1: two Verbose steps, each with a noop `show` before `norm_num`.
--- filterVerboseSteps keeps only `show` per step; skip-last removes step 2 → 1 decide shortcut.
+-- Decl 1 (Verbose, 2 steps): filterVerboseSteps keeps first non-boundary tactic per step
+-- (`show` at lines 11 and 14); skip-last drops line 14 → 1 shortcut: `decide` at line 11.
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   Let's first prove that 1 + 1 = 2
   show 1 + 1 = 2
@@ -14,9 +14,9 @@ example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   show 2 + 2 = 4
   norm_num
 
--- Decl 2: no step boundaries; filterVerboseSteps must not suppress tactics here.
--- Has two tactic positions: decide shortcut at `constructor` (line 20, kept),
--- `all_goals norm_num` (line 21, last → skipped by skip-last rule).
+-- Decl 2 (plain, no step boundaries): filterVerboseSteps must not suppress tactics here.
+-- 2 tactic positions: line 21 `constructor` (decide closes `1+1=2 ∧ 2+2=4`, 1 shortcut) and
+-- line 22 `all_goals norm_num` (last tactic per declaration → dropped by skip-last, 0 shortcuts).
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   constructor
   all_goals norm_num

@@ -4,6 +4,16 @@ import Lean.Elab.Tactic
 import Lean.Elab.Import
 import Lean.Meta
 
+/-! # Goudlokje.Analysis
+
+Core file analysis engine for Goudlokje.
+
+This module implements InfoTree traversal (`collectTacticInfos`) and goal-state
+replay (`tryTacticAt`) from scratch rather than delegating to the
+`Mathlib.Tactic.TacticAnalysis` framework.  The rationale — monad mismatch,
+missing Verbose-wrapper filtering, and linter-only API — is documented in full
+in the `analyzeFile` docstring below. -/
+
 namespace Goudlokje
 
 open Lean Elab Meta
@@ -288,6 +298,14 @@ private def getOrBuildEnv
     only layer accessible from `IO`. -/
 def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
+    -- filterVerboseSteps: set to `true` when analysing Lean Verbose worksheet files.
+    --   *Enable*  for Verbose-style exercises (using `Let's prove that …` step markers):
+    --     the filter keeps only the first proof-attempt tactic per Verbose step, avoiding
+    --     multiple shortcut reports for the same exercise step (e.g. both `show P` and
+    --     `norm_num` would otherwise be flagged when `decide` can close the whole step).
+    --   *Disable* (the default) for plain Lean / Mathlib files that do not use Verbose
+    --     step boundaries: applying the filter to such files would incorrectly suppress
+    --     all-but-the-first tactic in every proof, producing false negatives.
     (filterVerboseSteps : Bool := false)
     (envCache : Option EnvCache := none)
     (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
