@@ -71,7 +71,18 @@ private def isSyntheticTacticContainer (ti : TacticInfo) : Bool :=
 /-- Collect (ContextInfo, TacticInfo) pairs from an InfoTree.
     We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`.
     Synthetic container nodes (`by` blocks, tactic sequences, Verbose proof wrappers)
-    are excluded via `isSyntheticTacticContainer`. -/
+    are excluded via `isSyntheticTacticContainer`.
+
+    **Why not use `Mathlib.Tactic.TacticAnalysis.findTacticSeqs`?**
+    This function is implemented from scratch rather than delegating to the Mathlib
+    framework.  The full rationale is in the `analyzeFile` docstring; briefly:
+    (1) `findTacticSeqs` lives in `CommandElabM`, which cannot be bridged to `IO`
+        without complex glue code that is more fragile than this traversal;
+    (2) it does not filter Verbose proof-wrapper nodes, so we need our own
+        `isSyntheticTacticContainer` regardless; and
+    (3) the high-level Mathlib API is a linter, not a batch-analysis primitive,
+        so it cannot return results or signal failures for Goudlokje's CI use case.
+    The custom traversal is therefore the simpler and more appropriate solution. -/
 private partial def collectTacticInfos
     (ci? : Option ContextInfo) (tree : InfoTree)
     (acc : Array (ContextInfo × TacticInfo)) : Array (ContextInfo × TacticInfo) :=
@@ -88,7 +99,11 @@ private partial def collectTacticInfos
   | .hole _ => acc
 
 /-- Try running `tacticStr` in the goal state captured by `ti`, using context `ci`.
-    Returns `true` if the tactic closes the first goal. -/
+    Returns `true` if the tactic closes the first goal.
+
+    **Why not use `Lean.Elab.ContextInfo.runTacticCode`?**
+    The Mathlib counterpart lives in `CommandElabM`; see `collectTacticInfos` and
+    the `analyzeFile` docstring for the full rationale. -/
 private def tryTacticAt
     (ci : ContextInfo) (mctxBefore : MetavarContext)
     (goal : MVarId) (tacticStr : String) : IO Bool := do
@@ -133,6 +148,23 @@ private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
 /-- When `filterVerboseSteps` is true, keep only the first non-boundary tactic per
     Verbose step, within each declaration.  Declarations without any step boundary
     keep ALL their tactics (they are not Verbose-style and must not be suppressed).
+
+    **Practical consequences for the `filterVerboseSteps` flag in `analyzeFile`:**
+
+    *Enable* (`filterVerboseSteps := true`) when analysing Lean Verbose worksheet
+    files whose proofs use step-boundary tactics such as `Let's first prove that …`
+    or `Let's now prove that …`.  In such files, each step typically contains
+    several sub-tactics (`show P`, `norm_num`, …) and a single probe tactic (e.g.
+    `decide`) may be able to close any of them.  Without filtering, every
+    sub-tactic in a step would be reported as a separate shortcut, flooding the
+    output with duplicate reports for the same exercise step.  The filter
+    suppresses all but the first sub-tactic per step, so each step yields at most
+    one shortcut report.
+
+    *Disable* (`filterVerboseSteps := false`, the default) for plain Lean or
+    Mathlib files that do not use Verbose step boundaries.  Enabling the filter on
+    such files would incorrectly suppress all-but-the-first tactic in every proof,
+    causing false negatives where real shortcuts go unreported.
 
     Filtering is applied per-declaration (grouped by `parentDecl?`) so that filter
     state does not leak across independent theorems and exercises.  Without this
