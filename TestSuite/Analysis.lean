@@ -65,16 +65,20 @@ def testVerboseFilterReducesResults : IO Unit := do
       s!"testVerboseFilter: expected filter to reduce shortcut count, \
         got unfiltered={withoutFilter.size} filtered={withFilter.size}")
 
-/-- Verbose step filtering: the filtered result keeps only the first tactic per step,
-    then skip-last removes the final step's position.  The fixture has 2 steps with
-    `show` as the first tactic each; after filtering and skip-last, only step 1 remains. -/
+/-- Verbose step filtering: each step is probed until the first shortcut; skip-last
+    removes the last non-boundary tactic of the declaration.
+    The fixture has 2 steps: step 1 = [show@12, norm_num@13], step 2 = [show@15, norm_num@16].
+    Skip-last drops norm_num@16 (the last tactic overall), leaving step 2 = [show@15].
+    Probing step 1: show@12 → shortcut → 1 shortcut for step 1.
+    Probing step 2: show@15 → shortcut → 1 shortcut for step 2.
+    Total: 2 shortcuts (one per step). -/
 def testVerboseFilterKeepsFirstPerStep : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiStep.lean"
   let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
-  -- 2 steps → filter keeps show@step1 and show@step2 → skip-last removes show@step2 → 1 shortcut
-  unless results.size == 1 do
+  -- 2 steps → step1 shortcut at show@12, step2 shortcut at show@15 → 2 shortcuts
+  unless results.size == 2 do
     throw (IO.userError
-      s!"testVerboseFilterKeepsFirstPerStep: expected 1 shortcut (step 1 only; step 2 is last), \
+      s!"testVerboseFilterKeepsFirstPerStep: expected 2 shortcuts (one per step), \
         got {results.size}")
 
 /-- Environment cache: analyzing the same file twice with a shared cache
@@ -142,19 +146,19 @@ def testOnProbeCallbackIncludesFailures : IO Unit := do
 def testVerboseFilterRespectsDeclarationBoundaries : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseMultiDecl.lean"
   -- Decl 2 (no step boundaries) has `constructor` at line 21.
-  -- Without filter: decide must be found at decl 2's `constructor` (line 21).
+  -- Without filter: decide must be found at decl 2's `constructor` (line 40).
   let withoutFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := false)
-  unless withoutFilter.any (fun r => r.line == 21) do
+  unless withoutFilter.any (fun r => r.line == 40) do
     throw (IO.userError
       "testVerboseFilterRespectsDeclarationBoundaries: fixture sanity check failed \
-       — expected decide shortcut at line 21 (constructor, unfiltered)")
+       — expected decide shortcut at line 40 (constructor, unfiltered)")
   -- With filter: decl 2 has no step boundaries, so filterVerboseSteps must NOT suppress it.
-  -- (skip-last removes `all_goals norm_num` at line 22 but keeps `constructor` at line 21.)
+  -- (skip-last removes `all_goals norm_num` at line 41 but keeps `constructor` at line 40.)
   let withFilter ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
-  unless withFilter.any (fun r => r.line == 21) do
+  unless withFilter.any (fun r => r.line == 40) do
     throw (IO.userError
       "testVerboseFilterRespectsDeclarationBoundaries: filterVerboseSteps incorrectly \
-       suppressed shortcuts in a declaration with no step boundaries (line 21)")
+       suppressed shortcuts in a declaration with no step boundaries (line 40)")
   -- Sanity: filter still reduces the overall count (decl 1's step filtering works).
   unless withFilter.size < withoutFilter.size do
     throw (IO.userError
@@ -196,25 +200,30 @@ def testSkipLastTacticNotReported : IO Unit := do
     a `TacticInfo` node at the `Proof:` position with a non-empty goal, which must NOT
     be treated as a user-written proof step and must NOT be probed.
 
-    The fixture uses an `Exercise` with a 2-tactic proof and no step boundaries
-    (so `filterVerboseSteps` does not help).  After filtering the wrapper and
-    applying skip-last, exactly 1 shortcut remains (the `show` step). -/
+    The fixture has two exercises; `Proof:` appears at lines 27 and 39.
+    These positions must never appear as shortcuts — they are wrapper nodes. -/
 def testVerboseExerciseDoesNotProbeBeforeProof : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseExercise.lean"
-  let results ← analyzeFile fixturePath #["decide"]
-  unless results.size == 1 do
+  let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  -- Verify the proof-wrapper nodes (at the `Proof:` token lines) are not probed
+  if results.any (fun r => r.line == 27) then
     throw (IO.userError
-      s!"testVerboseExerciseDoesNotProbeBeforeProof: expected 1 shortcut \
-        (proof wrapper at Proof: must not be probed), got {results.size}")
+      "testVerboseExerciseDoesNotProbeBeforeProof: shortcut reported at line 27 (Proof: wrapper of Exercise 1)")
+  if results.any (fun r => r.line == 39) then
+    throw (IO.userError
+      "testVerboseExerciseDoesNotProbeBeforeProof: shortcut reported at line 39 (Proof: wrapper of Exercise 2)")
 
 /-- Regression test: combined Verbose Lean proof wrapper (Exercise block) with full
-    Lean Verbose step syntax (`Let's first/now prove that …`) inside the proof body.
+    Lean Verbose step syntax (`Let's first/now prove that …`) and `We compute` (a full
+    Lean Verbose phrase) inside the proof body.
 
-    Both filters must cooperate:
+    All three filters must cooperate:
     - `isSyntheticTacticContainer` suppresses the `with(out)_suggestions` wrapper at `Proof:`
-    - `filterVerboseSteps` keeps only the first non-boundary tactic per step
-    - `skipLastPerDeclaration` drops the last overall position (step 2's `show`)
-    After all three, exactly 1 shortcut remains (step 1's `show`). -/
+    - `filterVerboseSteps` keeps only the first non-boundary tactic per step (`We compute`)
+    - `skipLastPerDeclaration` drops the last overall position (step 2's `We compute`)
+    After all three, exactly 1 shortcut remains (step 1's `We compute` at line 29).
+    The test checks both the count and the line to confirm the Lean Verbose phrase
+    is the detected shortcut (not a plain `show` or `norm_num`). -/
 def testVerboseExerciseWithStepsYieldsOneShortcut : IO Unit := do
   let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseExerciseWithSteps.lean"
   let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
@@ -222,6 +231,30 @@ def testVerboseExerciseWithStepsYieldsOneShortcut : IO Unit := do
     throw (IO.userError
       s!"testVerboseExerciseWithStepsYieldsOneShortcut: expected 1 shortcut \
         (wrapper filtered, step 2 is last), got {results.size}")
+  -- Verify the shortcut is at the `We compute` Lean Verbose phrase (step 1, line 29)
+  unless results.any (fun r => r.line == 29) do
+    throw (IO.userError
+      "testVerboseExerciseWithStepsYieldsOneShortcut: shortcut must be at \
+        `We compute` phrase (step 1, line 29)")
+
+/-- Thread 4 regression: combined Exercise wrapper + step boundaries + Lean Verbose phrase.
+    VerboseExercise.lean has two exercises; Exercise 2 uses `We compute` (a full Lean Verbose
+    phrase) within step boundaries.  With filterVerboseSteps=true, each exercise contributes
+    exactly 1 shortcut → 2 total.  The shortcut from Exercise 2 must be at the `We compute`
+    phrase (step 1 of Exercise 2). -/
+def testVerboseExerciseWithStepsAndVerbosePhrase : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseExercise.lean"
+  let results ← analyzeFile fixturePath #["decide"] (filterVerboseSteps := true)
+  unless results.size == 2 do
+    throw (IO.userError
+      s!"testVerboseExerciseWithStepsAndVerbosePhrase: expected 2 shortcuts \
+        (1 from Exercise 1 show, 1 from Exercise 2 We compute), got {results.size}")
+  -- Verify the Lean Verbose phrase shortcut (We compute at step 1 of Exercise 2) is found.
+  -- Exercise 1's `show` is at line 28; Exercise 2's `We compute` (step 1) is at line 41.
+  unless results.any (fun r => r.line == 41) do
+    throw (IO.userError
+      "testVerboseExerciseWithStepsAndVerbosePhrase: expected shortcut at `We compute` \
+        phrase (Exercise 2, step 1, line 41)")
 
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
@@ -251,5 +284,7 @@ def runAll : IO Unit := do
                              IO.println "  ✓ testVerboseExerciseDoesNotProbeBeforeProof"
   testVerboseExerciseWithStepsYieldsOneShortcut;
                              IO.println "  ✓ testVerboseExerciseWithStepsYieldsOneShortcut"
+  testVerboseExerciseWithStepsAndVerbosePhrase;
+                             IO.println "  ✓ testVerboseExerciseWithStepsAndVerbosePhrase"
 
 end TestSuite.Analysis

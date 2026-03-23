@@ -145,84 +145,62 @@ private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
   k == "tacticLet'sNowProveThat_"   ||
   k == "tacticLet'sProveThat_Works_"
 
-/-- When `filterVerboseSteps` is true, keep only the first non-boundary tactic per
-    Verbose step, within each declaration.  Declarations without any step boundary
-    keep ALL their tactics (they are not Verbose-style and must not be suppressed).
+/-- Group non-boundary tactics by Verbose step for a tree that contains step boundaries.
 
-    **Practical consequences for the `filterVerboseSteps` flag in `analyzeFile`:**
+    `afterSkipLast` contains the tactics to group (step boundaries already removed,
+    skip-last already applied).  `raw` contains all tactics from the tree including
+    step boundaries, used solely to locate group boundaries.
 
-    *Enable* (`filterVerboseSteps := true`) when analysing Lean Verbose worksheet
-    files whose proofs use step-boundary tactics such as `Let's first prove that …`
-    or `Let's now prove that …`.  In such files, each step typically contains
-    several sub-tactics (`show P`, `norm_num`, …) and a single probe tactic (e.g.
-    `decide`) may be able to close any of them.  Without filtering, every
-    sub-tactic in a step would be reported as a separate shortcut, flooding the
-    output with duplicate reports for the same exercise step.  The filter
-    suppresses all but the first sub-tactic per step, so each step yields at most
-    one shortcut report.
+    Returns an array of step groups; each inner array holds the tactics for one
+    Verbose step in source order.  Tactics that appear before the first boundary
+    (rare) form their own leading group.
 
-    *Disable* (`filterVerboseSteps := false`, the default) for plain Lean or
-    Mathlib files that do not use Verbose step boundaries.  Enabling the filter on
-    such files would incorrectly suppress all-but-the-first tactic in every proof,
-    causing false negatives where real shortcuts go unreported.
-
-    Filtering is applied per-declaration (grouped by `parentDecl?`) so that filter
-    state does not leak across independent theorems and exercises.  Without this
-    isolation, a Verbose-style example earlier in the file would cause the filter to
-    suppress all tactics in a later exercise that has no step boundaries of its own. -/
-private def applyVerboseStepFilter
-    (infos : Array (ContextInfo × TacticInfo)) (fileMap : FileMap) :
-    Array (ContextInfo × TacticInfo) :=
-  -- Early exit: no step boundaries present → no filtering needed
-  if !infos.any (fun (_, ti) => isVerboseStepBoundary ti) then infos
-  else
-    -- Sort by source position
-    let withPos := infos.map fun (ci, ti) =>
-      (fileMap.toPosition (ti.stx.getPos?.getD 0), ci, ti)
-    let sorted := withPos.toList.mergeSort (fun (p1, _, _) (p2, _, _) =>
-      p1.line < p2.line || (p1.line == p2.line && p1.column < p2.column))
-    -- Group consecutive tactics by enclosing declaration (parentDecl?).
-    -- foldl over the sorted list accumulates groups in reverse with items within
-    -- each group also reversed; we reverse both at the end to restore source order.
-    let groups : List (Option Name × List (ContextInfo × TacticInfo)) :=
-      sorted.foldl (fun acc (_, ci, ti) =>
-        let decl := ci.parentDecl?
-        match acc with
-        | [] => [(decl, [(ci, ti)])]
-        | (d, items) :: rest =>
-          if d == decl then (d, (ci, ti) :: items) :: rest
-          else (decl, [(ci, ti)]) :: acc)
-        []
-    -- For each group: if the group has step boundaries, apply the step filter
-    -- (keep only the first non-boundary tactic per step).  Otherwise keep all
-    -- (the declaration is not a Verbose-style proof).
-    let filterGroup (items : List (ContextInfo × TacticInfo)) :
-        List (ContextInfo × TacticInfo) :=
-      if !items.any (fun (_, ti) => isVerboseStepBoundary ti) then
-        items  -- No step boundaries in this declaration → keep all
+    The caller probes each group in order and reports only the **first** successful
+    probe per group, implementing "report first shortcut per step" semantics:
+    - If the first tactic in a step is shortcuttable it is reported and the rest of
+      the step is skipped.
+    - If the first tactic is *not* shortcuttable, the remaining tactics in the step
+      are probed in order until a shortcut is found (or the step is exhausted). -/
+private def groupByVerboseStep
+    (afterSkipLast : Array (ContextInfo × TacticInfo))
+    (raw : Array (ContextInfo × TacticInfo))
+    (fileMap : FileMap) :
+    Array (Array (ContextInfo × TacticInfo)) :=
+  -- Set of source positions that survived skip-last (used to skip dropped tactics)
+  let survivorPos := afterSkipLast.map (fun (_, ti) => ti.stx.getPos?.getD 0)
+  let lt (a b : ContextInfo × TacticInfo) : Bool :=
+    let p1 := fileMap.toPosition (a.2.stx.getPos?.getD 0)
+    let p2 := fileMap.toPosition (b.2.stx.getPos?.getD 0)
+    p1.line < p2.line || (p1.line == p2.line && p1.column < p2.column)
+  let sortedRaw := raw.toList.mergeSort lt
+  let (groups, currentGroup) := sortedRaw.foldl
+    (fun (acc : Array (Array (ContextInfo × TacticInfo)) × Array (ContextInfo × TacticInfo))
+         (ci, ti) =>
+      let (gs, cur) := acc
+      if isVerboseStepBoundary ti then
+        -- Start a new step group; push current group if non-empty
+        (if cur.isEmpty then gs else gs.push cur, #[])
+      else if survivorPos.contains (ti.stx.getPos?.getD 0) then
+        -- Eligible tactic: append to current group
+        (gs, cur.push (ci, ti))
       else
-        let (result, _, _) := items.foldl
-          (fun (acc : Array (ContextInfo × TacticInfo) × Bool × Bool) (ci, ti) =>
-            let (result, inStep, stepGotFirst) := acc
-            if isVerboseStepBoundary ti then
-              (result, true, false)
-            else if inStep && !stepGotFirst then
-              (result.push (ci, ti), true, true)
-            else
-              (result, inStep, stepGotFirst))
-          (#[], false, false)
-        result.toList
-    -- Reverse groups and items to restore source order, apply filter to each group
-    let allResults : List (ContextInfo × TacticInfo) :=
-      groups.reverse.foldl (fun acc (_, items) => acc ++ filterGroup items.reverse) []
-    allResults.toArray
+        -- Dropped by skip-last: skip
+        (gs, cur))
+    (#[], #[])
+  if currentGroup.isEmpty then groups else groups.push currentGroup
 
-/-- For each declaration in `infos`, drop the last tactic position (by source order).
+/-- For each declaration in `infos`, drop **all** tactic nodes at the last source
+    position (by source order).
     A shortcut at the final step of a proof never saves proof lines — the student
     must still write that step (or an equivalent).  Skipping it avoids false positives
     where a probe tactic can close the goal at the last line of an exercise.
 
-    Grouping follows the same consecutive-`parentDecl?` logic as `applyVerboseStepFilter`:
+    We drop ALL nodes at the last position, not just one.  Lean Verbose phrases such
+    as `We compute` expand via macros and can produce multiple `TacticInfo` nodes
+    at the same source position (the phrase itself and its inner tactic).  Using a
+    simple `dropLast` would leave one of those nodes behind, causing a false positive.
+
+    Grouping follows the same consecutive-`parentDecl?` logic as the step filter:
     tactics are grouped by consecutive runs sharing the same `parentDecl?` so that
     anonymous `example` blocks, which share `parentDecl? = none`, are correctly
     separated when each is processed in its own InfoTree. -/
@@ -243,10 +221,18 @@ private def skipLastPerDeclaration
         else (decl, [(ci, ti)]) :: acc)
       []
   -- groups is in reverse source order; items within each group are also reversed.
-  -- Restore source order and drop the last tactic of each group.
+  -- Restore source order and drop ALL tactics at the last source position of each group.
+  let dropLastPos (items : List (ContextInfo × TacticInfo)) (fileMap : FileMap) :
+      List (ContextInfo × TacticInfo) :=
+    match items.getLast? with
+    | none => []
+    | some (_, lastTi) =>
+      let lastPos := fileMap.toPosition (lastTi.stx.getPos?.getD 0)
+      items.filter fun (_, ti) =>
+        fileMap.toPosition (ti.stx.getPos?.getD 0) != lastPos
   let allResults :=
     groups.reverse.foldl (fun acc (_, items) =>
-      acc ++ items.reverse.dropLast)
+      acc ++ dropLastPos items.reverse fileMap)
       []
   allResults.toArray
 
@@ -330,14 +316,25 @@ private def getOrBuildEnv
     only layer accessible from `IO`. -/
 def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
-    -- filterVerboseSteps: set to `true` when analysing Lean Verbose worksheet files.
-    --   *Enable*  for Verbose-style exercises (using `Let's prove that …` step markers):
-    --     the filter keeps only the first proof-attempt tactic per Verbose step, avoiding
-    --     multiple shortcut reports for the same exercise step (e.g. both `show P` and
-    --     `norm_num` would otherwise be flagged when `decide` can close the whole step).
-    --   *Disable* (the default) for plain Lean / Mathlib files that do not use Verbose
-    --     step boundaries: applying the filter to such files would incorrectly suppress
-    --     all-but-the-first tactic in every proof, producing false negatives.
+    -- filterVerboseSteps: controls per-step shortcut deduplication for Lean Verbose files.
+    --
+    --   Step-boundary tactics (`Let's first prove that …`, `Let's now prove that …`) are
+    --   **always** excluded from probing regardless of this flag — they are structural
+    --   markers, not user proof steps.  This flag only affects how the remaining tactics
+    --   inside each step body are reported.
+    --
+    --   *Enable* (`true`) when analysing Lean Verbose worksheet files whose proofs use
+    --   step-boundary tactics.  With this flag, Goudlokje groups tactics by Verbose step
+    --   and reports at most one shortcut per step — specifically the *first* tactic in
+    --   the step that the probe can close.  If the first tactic in a step is not
+    --   shortcuttable, subsequent tactics in the same step are probed in source order
+    --   until a shortcut is found.  Without this flag, every tactic in every step body
+    --   is reported separately, flooding the output with duplicate reports for the same
+    --   exercise step.
+    --
+    --   *Disable* (`false`, the default) for plain Lean or Mathlib files that do not
+    --   use Verbose step boundaries.  Enabling step grouping on such files would cause
+    --   Goudlokje to report at most one shortcut per proof, missing later shortcuts.
     (filterVerboseSteps : Bool := false)
     (envCache : Option EnvCache := none)
     (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
@@ -375,35 +372,59 @@ def analyzeFile
   -- Resolve any pending lazy assignments
   let assignment := finalState.commandState.infoState.assignment
   let resolvedTrees := allTrees.map fun t => t.substitute assignment
-  -- Build tactic info per tree so that step-boundary state and skip-last logic
-  -- do not leak across independent commands.  Each tree corresponds to one
-  -- top-level command (e.g. one `example`, one `theorem`, or one `#doc` block).
-  -- Within each tree, `applyVerboseStepFilter` groups by `parentDecl?` to isolate
-  -- named declarations that share a tree (e.g. exercises inside a `#doc` block).
-  -- `skipLastPerDeclaration` is always applied after optional verbose filtering:
-  -- a shortcut at the final step of a proof never saves proof lines.
-  let tacticInfos :=
+  -- Build step groups per tree.
+  -- Each tree corresponds to one top-level command; step-boundary state and
+  -- skip-last logic are applied independently per tree so they do not leak
+  -- across commands.
+  --
+  -- When `filterVerboseSteps` is true and the tree contains Verbose step
+  -- boundaries, tactics are grouped by step via `groupByVerboseStep`.  The
+  -- probing loop below then reports at most one shortcut per group (the first
+  -- tactic in the step that the probe can close).
+  --
+  -- When `filterVerboseSteps` is false, or when the tree has no step boundaries,
+  -- each tactic becomes a singleton group so all shortcuts are reported.
+  --
+  -- `skipLastPerDeclaration` is applied before grouping: a shortcut at the final
+  -- tactic of a proof never saves proof lines and must not be reported.
+  let allGroups : Array (Array (ContextInfo × TacticInfo)) :=
     resolvedTrees.foldl (fun acc t =>
       let raw := collectTacticInfos none t #[]
-      let filtered :=
-        if filterVerboseSteps then applyVerboseStepFilter raw inputCtx.fileMap else raw
-      acc ++ skipLastPerDeclaration filtered inputCtx.fileMap) #[]
-  -- Probe each goal at each tactic step
+      -- Always exclude step boundaries from probing: they are structural markers
+      -- (e.g. `Let's first prove that …`), not user proof tactics.  They do appear
+      -- in `raw` so that `groupByVerboseStep` can use them as group delimiters.
+      let nonBoundary := raw.filter (fun (_, ti) => !isVerboseStepBoundary ti)
+      let afterSkipLast := skipLastPerDeclaration nonBoundary inputCtx.fileMap
+      let groups :=
+        if filterVerboseSteps && raw.any (fun (_, ti) => isVerboseStepBoundary ti)
+        then groupByVerboseStep afterSkipLast raw inputCtx.fileMap
+        else afterSkipLast.map (fun pair => #[pair])
+      acc ++ groups) #[]
+  -- Probe each step group.
+  -- For Verbose step groups (size > 1), stop at the first successful probe
+  -- (report the first shortcut in the step; skip the rest of the step).
+  -- For singleton groups (non-Verbose or no boundaries), report all shortcuts.
   let mut results : Array ProbeResult := #[]
-  for (ci, ti) in tacticInfos do
-    let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
-    for goal in ti.goalsBefore do
-      for tacticStr in probeTactics do
-        let succeeded ← tryTacticAt ci ti.mctxBefore goal tacticStr
-        if let some cb := onProbe then
-          cb pos.line pos.column tacticStr succeeded
-        if succeeded then
-          results := results.push {
-            file   := filePath.toString
-            line   := pos.line
-            column := pos.column
-            tactic := tacticStr
-          }
+  for group in allGroups do
+    let mut groupDone := false
+    for (ci, ti) in group do
+      if !groupDone then
+        let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
+        for goal in ti.goalsBefore do
+          if !groupDone then
+            for tacticStr in probeTactics do
+              if !groupDone then
+                let succeeded ← tryTacticAt ci ti.mctxBefore goal tacticStr
+                if let some cb := onProbe then
+                  cb pos.line pos.column tacticStr succeeded
+                if succeeded then
+                  results := results.push {
+                    file   := filePath.toString
+                    line   := pos.line
+                    column := pos.column
+                    tactic := tacticStr
+                  }
+                  groupDone := true
   -- Deduplicate: multiple InfoTree nodes can cover the same tactic step,
   -- and each goal in goalsBefore is probed independently, so the same
   -- (file, line, column, tactic) tuple can appear several times.

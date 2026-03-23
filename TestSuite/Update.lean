@@ -11,10 +11,10 @@ open Goudlokje
 private def setupTempWorkspace (dir : System.FilePath) : IO (System.FilePath × System.FilePath) := do
   try IO.FS.createDir dir catch _ => pure ()
   let leanFile := dir / "Fixture.lean"
-  -- A vanilla Lean file with a trivially shortcuttable proof.
-  -- `decide` closes the goal `1 + 1 = 2` at the `rfl` step.
+  -- A two-step proof so that skip-last drops `rfl` (the last step) and
+  -- `decide` finds a shortcut at `show 1+1=2` (the first, non-last step).
   IO.FS.writeFile leanFile
-    "theorem simple : 1 + 1 = 2 := by\n  rfl\n"
+    "theorem simple : 1 + 1 = 2 := by\n  show 1 + 1 = 2\n  rfl\n"
   let testJson := dir / "Fixture.test.json"
   -- Ensure any leftover from a previous run is removed.
   try IO.FS.removeFile testJson catch _ => pure ()
