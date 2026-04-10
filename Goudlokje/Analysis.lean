@@ -237,7 +237,12 @@ def collectTacticKinds (filePath : System.FilePath) : IO (Array String) := do
 
 /-- A cache mapping import-header text to compiled environments.
     Reusing environments across files with the same imports avoids redundant
-    `.olean` loading (the dominant cost for files that import Mathlib). -/
+  `.olean` loading (the dominant cost for files that import Mathlib).
+
+  The cache intentionally keeps only environments from the current import-set
+  "generation". Importing a new set of modules can register additional
+  environment extensions globally; older cached environments may then become
+  unsafe to reuse and can panic when later commands access those extensions. -/
 abbrev EnvCache := IO.Ref (Array (String × Environment))
 
 /-- Create a fresh empty environment cache. -/
@@ -281,7 +286,12 @@ private def mkHeaderCacheKey (header : Syntax) : String :=
 
 /-- Look up or build the environment for a set of imports.
     `key` uniquely identifies the import set (e.g. the raw header text).
-    `build` is called only on a cache miss to produce the `Environment`. -/
+  `build` is called only on a cache miss to produce the `Environment`.
+
+  On a miss we replace the cache contents instead of accumulating multiple
+  distinct environments. This preserves reuse for repeated analyses with the
+  same imports while avoiding reuse of environments created before later
+  imports registered additional env extensions. -/
 private def getOrBuildEnv
     (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
   let cached ← cache.get
@@ -294,7 +304,7 @@ private def getOrBuildEnv
   | none =>
     logMemorySnapshot "before processHeader"
     let env ← build
-    cache.modify (fun arr => arr.push (key, env))
+    cache.set #[(key, env)]
     let updated ← cache.get
     if ← memoryDebugEnabledRef.get then
       IO.println s!"  [memory] env cache miss | entries={updated.size}"
