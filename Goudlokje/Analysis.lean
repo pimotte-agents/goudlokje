@@ -243,6 +243,42 @@ abbrev EnvCache := IO.Ref (Array (String × Environment))
 /-- Create a fresh empty environment cache. -/
 def mkEnvCache : IO EnvCache := IO.mkRef #[]
 
+initialize memoryDebugEnabledRef : IO.Ref Bool ← IO.mkRef false
+
+/-- Run an action with memory-debug logging temporarily enabled or disabled. -/
+def withMemoryDebug (enabled : Bool) (act : IO α) : IO α := do
+  let prev ← memoryDebugEnabledRef.get
+  memoryDebugEnabledRef.set enabled
+  try
+    act
+  finally
+    memoryDebugEnabledRef.set prev
+
+/-- Read a field such as `VmRSS` from `/proc/self/status` on Linux. -/
+private def readProcStatusField? (field : String) : IO (Option String) := do
+  let statusPath : System.FilePath := "/proc/self/status"
+  if !(← statusPath.pathExists) then
+    return none
+  let contents ← IO.FS.readFile statusPath
+  return (contents.splitOn "\n").find? (fun line => line.startsWith (field ++ ":"))
+
+/-- Emit a lightweight memory usage snapshot when debug memory logging is enabled. -/
+private def logMemorySnapshot (phase : String) : IO Unit := do
+  if ← memoryDebugEnabledRef.get then
+    let rss? ← readProcStatusField? "VmRSS"
+    let hwm? ← readProcStatusField? "VmHWM"
+    let rss := rss?.getD "VmRSS: unavailable"
+    let hwm := hwm?.getD "VmHWM: unavailable"
+    IO.println s!"  [memory] {phase} | {rss.trimAscii.toString} | {hwm.trimAscii.toString}"
+
+/-- Build a normalized cache key from the parsed import header.
+    Files with the same effective imports should share one cache entry even when
+    comments or whitespace differ. -/
+private def mkHeaderCacheKey (header : Syntax) : String :=
+  let imports := headerToImports ⟨header⟩
+  "\n".intercalate <| imports.toList.map fun imp =>
+    s!"{imp.module}"
+
 /-- Look up or build the environment for a set of imports.
     `key` uniquely identifies the import set (e.g. the raw header text).
     `build` is called only on a cache miss to produce the `Environment`. -/
@@ -250,10 +286,19 @@ private def getOrBuildEnv
     (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
   let cached ← cache.get
   match cached.find? (fun (k, _) => k == key) with
-  | some (_, env) => return env
+  | some (_, env) =>
+    if ← memoryDebugEnabledRef.get then
+      IO.println s!"  [memory] env cache hit | entries={cached.size}"
+      logMemorySnapshot "after env cache hit"
+    return env
   | none =>
+    logMemorySnapshot "before processHeader"
     let env ← build
     cache.modify (fun arr => arr.push (key, env))
+    let updated ← cache.get
+    if ← memoryDebugEnabledRef.get then
+      IO.println s!"  [memory] env cache miss | entries={updated.size}"
+      logMemorySnapshot "after processHeader"
     return env
 
 /-- Keep only lines that are meaningful Lean context outside fenced `lean` blocks.
@@ -308,14 +353,17 @@ private def analyzeInput
   let opts  := Elab.async.set Options.empty false
   let inputCtx := Parser.mkInputContext input displayPath.toString
   let (header, parserState, _messages) ← Parser.parseHeader inputCtx
-  let headerKey := "\n".intercalate
-    (input.splitOn "\n" |>.takeWhile fun l =>
-      l.startsWith "import " || l.startsWith "--" || l.isEmpty)
+  logMemorySnapshot s!"start analyzeInput {displayPath}"
+  let headerKey := mkHeaderCacheKey header
   let env ← match envCache with
     | some cache =>
       getOrBuildEnv cache headerKey do
         let (env, _) ← processHeader header opts {} inputCtx; pure env
-    | none => do let (env, _) ← processHeader header opts {} inputCtx; pure env
+    | none => do
+      logMemorySnapshot "before processHeader"
+      let (env, _) ← processHeader header opts {} inputCtx
+      logMemorySnapshot "after processHeader"
+      pure env
   let initCmdState : Command.State := Command.mkState env {} opts
   let initState : Frontend.State := {
     commandState := initCmdState
@@ -326,34 +374,53 @@ private def analyzeInput
   let mut results : Array ProbeResult := #[]
   let mut state := initState
   let mut done := false
+  let mut cmdIdx := 0
   while !done do
+    logMemorySnapshot s!"before processCommand[{cmdIdx}]"
     let (isDone, newState) ← (Frontend.processCommand.run ctx).run state
+    logMemorySnapshot s!"after processCommand[{cmdIdx}]"
     -- Consume each command's trees immediately to avoid retaining all frontend data.
     let assignment := newState.commandState.infoState.assignment
     let resolvedTrees := newState.commandState.infoState.trees.toArray.map fun t =>
       t.substitute assignment
+    if ← memoryDebugEnabledRef.get then
+      IO.println s!"  [memory] command[{cmdIdx}] trees={resolvedTrees.size}"
+    logMemorySnapshot s!"after substitute[{cmdIdx}]"
     let tacticInfos :=
       resolvedTrees.foldl (fun acc t =>
         let raw := collectTacticInfos none t #[]
         let filtered :=
           if filterVerboseSteps then applyVerboseStepFilter raw inputCtx.fileMap else raw
         acc ++ skipLastPerDeclaration filtered inputCtx.fileMap) #[]
+    if ← memoryDebugEnabledRef.get then
+      let goalCount := tacticInfos.foldl (fun acc (_, ti) => acc + ti.goalsBefore.length) 0
+      IO.println s!"  [memory] command[{cmdIdx}] tacticInfos={tacticInfos.size} goals={goalCount}"
+    logMemorySnapshot s!"after collectTacticInfos[{cmdIdx}]"
+    let mut commandProbeAttempts := 0
+    let mut commandSuccesses := 0
     for (ci, ti) in tacticInfos do
       let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
       for goal in ti.goalsBefore do
         for tacticStr in probeTactics do
+          commandProbeAttempts := commandProbeAttempts + 1
           let succeeded ← tryTacticAt ci ti.mctxBefore goal tacticStr
           if let some cb := onProbe then
             cb pos.line pos.column tacticStr succeeded
           if succeeded then
+            commandSuccesses := commandSuccesses + 1
             results := results.push {
               file   := displayPath.toString
               line   := pos.line
               column := pos.column
               tactic := tacticStr
             }
+    if ← memoryDebugEnabledRef.get then
+      IO.println s!"  [memory] command[{cmdIdx}] probeAttempts={commandProbeAttempts} successes={commandSuccesses} cumulativeResults={results.size}"
+    logMemorySnapshot s!"after probing[{cmdIdx}]"
     state := newState
     done := isDone
+    cmdIdx := cmdIdx + 1
+  logMemorySnapshot s!"end analyzeInput {displayPath}"
   return results.foldl (fun acc r => if acc.contains r then acc else acc.push r) #[]
 
 /-- Analyse a single Lean source file, returning every (position, tactic) pair
@@ -370,7 +437,7 @@ def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
     (filterVerboseSteps : Bool := false)
     (envCache : Option EnvCache := none)
-    (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
+  (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
     IO (Array ProbeResult) := do
   -- Ensure the Lean stdlib .olean files are findable at runtime.
   -- `initSearchPath` also calls `addSearchPathFromEnv` which picks up the

@@ -36,7 +36,8 @@ def runCheck
             let mark := if succeeded then "✓" else "✗"
             IO.println s!"  Probe {mark} {line}:{col} — `{tactic}`"
       else none
-    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
+    let found ← Goudlokje.withMemoryDebug debugMode do
+      analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
     let tf    ← TestFile.load (ws.testPath.getD (ws.sourcePath.withExtension "test.json"))
     let cr    := classify found tf
     if debugMode then

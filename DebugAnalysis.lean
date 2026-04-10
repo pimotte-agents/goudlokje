@@ -83,7 +83,8 @@ def main (args : List String) : IO Unit := do
 
   IO.println ""
   IO.println "=== analyzeFile results ==="
-  let results ← analyzeFile filePath #["decide"]
+  let results ← Goudlokje.withMemoryDebug true do
+    analyzeFile filePath #["decide"]
   IO.println s!"Results: {results.size}"
   for r in results do
     IO.println s!"  {r.file}:{r.line}:{r.column} - {r.tactic}"

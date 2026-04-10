@@ -41,7 +41,8 @@ def runUpdate
             let mark := if succeeded then "✓" else "✗"
             IO.println s!"  Probe {mark} {line}:{col} — `{tactic}`"
       else none
-    let found ← analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
+    let found ← Goudlokje.withMemoryDebug debugMode do
+      analyzeFile ws.sourcePath cfg.tactics cfg.filterVerboseSteps (some cache) probeLog
     let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
     let tf    ← TestFile.load testPath
     let cr    := classify found tf
