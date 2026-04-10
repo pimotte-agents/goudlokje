@@ -1,4 +1,6 @@
 import Lean
+import Lean.Data.Json
+import Lean.Data.Json.FromToJson
 import Lean.Elab.Frontend
 import Lean.Elab.Tactic
 import Lean.Elab.Import
@@ -14,7 +16,7 @@ structure ProbeResult where
   line   : Nat
   column : Nat
   tactic : String
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, ToJson, FromJson
 
 /-- Return true if this `TacticInfo` is a synthetic container or proof-scaffolding
     tactic that does not correspond to a user-written proof step.
@@ -235,19 +237,6 @@ def collectTacticKinds (filePath : System.FilePath) : IO (Array String) := do
     if acc.contains k then acc else acc.push k) #[]
   return kinds
 
-/-- A cache mapping import-header text to compiled environments.
-    Reusing environments across files with the same imports avoids redundant
-  `.olean` loading (the dominant cost for files that import Mathlib).
-
-  The cache intentionally keeps only environments from the current import-set
-  "generation". Importing a new set of modules can register additional
-  environment extensions globally; older cached environments may then become
-  unsafe to reuse and can panic when later commands access those extensions. -/
-abbrev EnvCache := IO.Ref (Array (String × Environment))
-
-/-- Create a fresh empty environment cache. -/
-def mkEnvCache : IO EnvCache := IO.mkRef #[]
-
 initialize memoryDebugEnabledRef : IO.Ref Bool ← IO.mkRef false
 
 /-- Run an action with memory-debug logging temporarily enabled or disabled. -/
@@ -276,40 +265,9 @@ private def logMemorySnapshot (phase : String) : IO Unit := do
     let hwm := hwm?.getD "VmHWM: unavailable"
     IO.println s!"  [memory] {phase} | {rss.trimAscii.toString} | {hwm.trimAscii.toString}"
 
-/-- Build a normalized cache key from the parsed import header.
-    Files with the same effective imports should share one cache entry even when
-    comments or whitespace differ. -/
-private def mkHeaderCacheKey (header : Syntax) : String :=
-  let imports := headerToImports ⟨header⟩
-  "\n".intercalate <| imports.toList.map fun imp =>
-    s!"{imp.module}"
-
-/-- Look up or build the environment for a set of imports.
-    `key` uniquely identifies the import set (e.g. the raw header text).
-  `build` is called only on a cache miss to produce the `Environment`.
-
-  On a miss we replace the cache contents instead of accumulating multiple
-  distinct environments. This preserves reuse for repeated analyses with the
-  same imports while avoiding reuse of environments created before later
-  imports registered additional env extensions. -/
-private def getOrBuildEnv
-    (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
-  let cached ← cache.get
-  match cached.find? (fun (k, _) => k == key) with
-  | some (_, env) =>
-    if ← memoryDebugEnabledRef.get then
-      IO.println s!"  [memory] env cache hit | entries={cached.size}"
-      logMemorySnapshot "after env cache hit"
-    return env
-  | none =>
-    logMemorySnapshot "before processHeader"
-    let env ← build
-    cache.set #[(key, env)]
-    let updated ← cache.get
-    if ← memoryDebugEnabledRef.get then
-      IO.println s!"  [memory] env cache miss | entries={updated.size}"
-      logMemorySnapshot "after processHeader"
-    return env
+/-- Public wrapper for memory snapshots when memory-debug logging is enabled. -/
+def printMemorySnapshot (phase : String) : IO Unit :=
+  logMemorySnapshot phase
 
 /-- Keep only lines that are meaningful Lean context outside fenced `lean` blocks.
     This is used as a fallback for Verso/Waterproof `#doc` sources where the
@@ -357,23 +315,15 @@ private def extractLeanFenceOverlay? (input : String) : Option String :=
 private def analyzeInput
     (displayPath : System.FilePath) (input : String) (probeTactics : Array String)
     (filterVerboseSteps : Bool := false)
-    (envCache : Option EnvCache := none)
     (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
     IO (Array ProbeResult) := do
   let opts  := Elab.async.set Options.empty false
   let inputCtx := Parser.mkInputContext input displayPath.toString
   let (header, parserState, _messages) ← Parser.parseHeader inputCtx
   logMemorySnapshot s!"start analyzeInput {displayPath}"
-  let headerKey := mkHeaderCacheKey header
-  let env ← match envCache with
-    | some cache =>
-      getOrBuildEnv cache headerKey do
-        let (env, _) ← processHeader header opts {} inputCtx; pure env
-    | none => do
-      logMemorySnapshot "before processHeader"
-      let (env, _) ← processHeader header opts {} inputCtx
-      logMemorySnapshot "after processHeader"
-      pure env
+  logMemorySnapshot "before processHeader"
+  let (env, _) ← processHeader header opts {} inputCtx
+  logMemorySnapshot "after processHeader"
   let initCmdState : Command.State := Command.mkState env {} opts
   let initState : Frontend.State := {
     commandState := initCmdState
@@ -438,15 +388,10 @@ private def analyzeInput
 
     Uses `Frontend.FrontendM` with `snap? := none` and `Elab.async = false`
     so theorem bodies are elaborated synchronously and `TacticInfo` nodes are
-    accumulated directly in `commandState.infoState.trees`.
-
-    If `envCache` is provided, the compiled environment for the file's imports
-    is reused across files with identical import lists, avoiding redundant
-    `.olean` loading. -/
+  accumulated directly in `commandState.infoState.trees`. -/
 def analyzeFile
     (filePath : System.FilePath) (probeTactics : Array String)
     (filterVerboseSteps : Bool := false)
-    (envCache : Option EnvCache := none)
   (onProbe : Option (Nat → Nat → String → Bool → IO Unit) := none) :
     IO (Array ProbeResult) := do
   -- Ensure the Lean stdlib .olean files are findable at runtime.
@@ -457,10 +402,10 @@ def analyzeFile
   -- Allow [init] declarations to be executed when importing modules
   unsafe Lean.enableInitializersExecution
   let input ← IO.FS.readFile filePath
-  let directResults ← analyzeInput filePath input probeTactics filterVerboseSteps envCache onProbe
+  let directResults ← analyzeInput filePath input probeTactics filterVerboseSteps (onProbe := onProbe)
   let merged ← match extractLeanFenceOverlay? input with
     | some overlay =>
-      let overlayResults ← analyzeInput filePath overlay probeTactics filterVerboseSteps envCache onProbe
+      let overlayResults ← analyzeInput filePath overlay probeTactics filterVerboseSteps (onProbe := onProbe)
       pure (directResults ++ overlayResults)
     | none =>
       pure directResults
