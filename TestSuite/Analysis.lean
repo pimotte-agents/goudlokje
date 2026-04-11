@@ -239,6 +239,30 @@ def testNestedLetProveThatNoShortcuts : IO Unit := do
     throw (IO.userError
       s!"testNestedLetProveThat: expected 0 shortcuts, got {results.size} at:{detail}")
 
+/-- Regression test: a `We discuss depending on whether` + `Assume that` exercise
+    (Example "1.1.20" in VerboseWaterproofFull) must report 0 shortcuts.
+    `tacticAssumeThat__` was missing from `isVerboseStepBoundary`, causing
+    `applyVerboseStepFilter` to leave `tacticWeConcludeBy_` nodes unfiltered. -/
+def testDiscussAssumeThatNoShortcuts : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  let results ← analyzeFile fixturePath #["We conclude by hypothesis"]
+    (filterVerboseSteps := true)
+  unless results.size == 0 do
+    let detail := results.foldl (fun s r => s ++ s!" {r.line}:{r.column}") ""
+    throw (IO.userError
+      s!"testDiscussAssumeThat: expected 0 shortcuts, got {results.size} at:{detail}")
+
+/-- Regression test: a nested `We discuss` + `Assume that` + `Let's prove that` exercise
+    (Exercise "1.1.21" in VerboseWaterproofFull) must report 0 shortcuts. -/
+def testNestedDiscussNoShortcuts : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  let results ← analyzeFile fixturePath #["We conclude by hypothesis"]
+    (filterVerboseSteps := true)
+  unless results.size == 0 do
+    let detail := results.foldl (fun s r => s ++ s!" {r.line}:{r.column}") ""
+    throw (IO.userError
+      s!"testNestedDiscuss: expected 0 shortcuts, got {results.size} at:{detail}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"

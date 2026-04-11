@@ -50,3 +50,38 @@ Proof:
     · We conclude by hypothesis
 QED
 ```
+
+```lean
+Example "1.1.20"
+  Given: (p q r : Prop)
+  Assume: (_ : (p ∨ q) ∧ r)
+  Conclusion: p ∨ (q ∧ r)
+Proof:
+  Since (p ∨ q) ∧ r we get that p ∨ q and r
+  We discuss depending on whether p or q
+  · Assume that p
+    Let's prove that p
+    · We conclude by hypothesis
+  · Assume that q
+    Let's prove that q ∧ r
+    · Since q and r we conclude that q ∧ r
+QED
+```
+
+```lean
+Exercise "1.1.21"
+  Given: (p q r : Prop)
+  Assume: (_ : q ∨ r)
+  Conclusion: (p ∨ q) ∨ (p ∨ r)
+Proof:
+  We discuss depending on whether q or r
+  · Assume that q
+    Let's prove that p ∨ q
+    · Let's prove that q
+      · We conclude by hypothesis
+  · Assume that r
+    Let's prove that p ∨ r
+    · Let's prove that r
+      · We conclude by hypothesis
+QED
+```

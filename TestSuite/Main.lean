@@ -53,6 +53,10 @@ private def runTestInProcess (suite testName : String) : IO UInt32 := do
     TestSuite.Analysis.testBulletSeenAsStepInVerboseWaterproofFull; return 0
   | "Analysis", "testNestedLetProveThatNoShortcuts" =>
     TestSuite.Analysis.testNestedLetProveThatNoShortcuts; return 0
+  | "Analysis", "testDiscussAssumeThatNoShortcuts" =>
+    TestSuite.Analysis.testDiscussAssumeThatNoShortcuts; return 0
+  | "Analysis", "testNestedDiscussNoShortcuts" =>
+    TestSuite.Analysis.testNestedDiscussNoShortcuts; return 0
   | "Check", "testCheckNonZeroForUnexpectedShortcuts" =>
     TestSuite.Check.testCheckNonZeroForUnexpectedShortcuts; return 0
   | "Check", "testCheckZeroWithEmptyTactics" =>
@@ -130,6 +134,8 @@ private def analysisTests : Array IntTestSpec := #[
   { suite := "Analysis", name := "testVerboseExerciseDoesNotProbeBeforeProof" },
   { suite := "Analysis", name := "testBulletSeenAsStepInVerboseWaterproofFull" },
   { suite := "Analysis", name := "testNestedLetProveThatNoShortcuts" },
+  { suite := "Analysis", name := "testDiscussAssumeThatNoShortcuts" },
+  { suite := "Analysis", name := "testNestedDiscussNoShortcuts" },
 ]
 
 private def checkTests : Array IntTestSpec := #[

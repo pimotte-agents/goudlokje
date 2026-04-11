@@ -157,9 +157,10 @@ private partial def processCommandsCollectTrees
     Kind names discovered empirically by inspecting the Verbose English library. -/
 private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
   let k := ti.stx.getKind.toString
-  k == "tacticLet'sFirstProveThat_" ||
-  k == "tacticLet'sNowProveThat_"   ||
-  k == "tacticLet'sProveThat_Works_"
+  k == "tacticLet'sFirstProveThat_"           ||
+  k == "tacticLet'sNowProveThat_"             ||
+  k == "tacticLet'sProveThat_Works_"          ||
+  k == "Verbose.NameLess.tacticAssumeThat__"
 
 /-- When `filterVerboseSteps` is true, filter tactic positions from declarations that
     contain Verbose step boundaries (e.g. `Let's first prove that …`).
