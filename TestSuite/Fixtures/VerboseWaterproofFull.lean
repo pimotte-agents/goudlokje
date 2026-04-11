@@ -38,3 +38,15 @@ Proof:
   · We conclude by hypothesis
 QED
 ```
+
+```lean
+Exercise "1.1.13_extra"
+  Given: (p q r : Prop)
+  Assume: (_ : p)
+  Conclusion: (p ∨ q) ∨ r
+Proof:
+  Let's prove that p ∨ q
+  · Let's prove that p
+    · We conclude by hypothesis
+QED
+```

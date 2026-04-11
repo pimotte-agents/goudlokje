@@ -224,6 +224,21 @@ def testBulletSeenAsStepInVerboseWaterproofFull : IO Unit := do
       s!"testBulletSeenAsStep: expected 0 shortcuts (single-tactic steps skipped), \
         got {results.size} at:{detail}")
 
+/-- Regression test: a nested `Let's prove that` exercise (1.1.13_extra in
+    VerboseWaterproofFull) must report 0 shortcuts when probed with
+    "We conclude by hypothesis".  The `tacticLet'sProveThat_` tactic (unqualified)
+    expands into internal elaboration nodes (`Lean.Parser.Tactic.first`, `show`,
+    `apply`, `«;»`) at the same source position as itself; these must not be treated
+    as user-written proof positions. -/
+def testNestedLetProveThatNoShortcuts : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  let results ← analyzeFile fixturePath #["We conclude by hypothesis"]
+    (filterVerboseSteps := true)
+  unless results.size == 0 do
+    let detail := results.foldl (fun s r => s ++ s!" {r.line}:{r.column}") ""
+    throw (IO.userError
+      s!"testNestedLetProveThat: expected 0 shortcuts, got {results.size} at:{detail}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"

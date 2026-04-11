@@ -79,10 +79,26 @@ private def isSyntheticTacticContainer (ti : TacticInfo) : Bool :=
   k == "Lean.cdot"                                ||
   k == "tacticStrg_assumption"
 
+/-- Return true if this `TacticInfo` node is an opaque Verbose tactic whose children
+    are internal elaboration artifacts and must not be traversed.
+
+    `tacticLet'sProveThat_` (unqualified, used for nested "Let's prove that …") expands
+    into `Lean.Parser.Tactic.first`, `show`, `apply`, and `«;»` nodes that share the
+    same source position as the `Let's prove that` keyword.  Descending into them
+    produces false-positive probe positions at the step-boundary line, not at any
+    position where a student would write a tactic.  Pruning the subtree entirely is the
+    correct approach: the step-boundary node itself is already excluded by
+    `isVerboseStepBoundary`, and no real user tactic lives inside it. -/
+private def isVerboseOpaqueSubtree (ti : TacticInfo) : Bool :=
+  let k := ti.stx.getKind.toString
+  k == "tacticLet'sProveThat_"
+
 /-- Collect (ContextInfo, TacticInfo) pairs from an InfoTree.
     We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`.
     Synthetic container nodes (`by` blocks, tactic sequences, Verbose proof wrappers)
-    are excluded via `isSyntheticTacticContainer`. -/
+    are excluded via `isSyntheticTacticContainer`.
+    Opaque Verbose subtrees (`tacticLet'sProveThat_`) are pruned entirely via
+    `isVerboseOpaqueSubtree`. -/
 private partial def collectTacticInfos
     (ci? : Option ContextInfo) (tree : InfoTree)
     (acc : Array (ContextInfo × TacticInfo)) : Array (ContextInfo × TacticInfo) :=
@@ -91,11 +107,15 @@ private partial def collectTacticInfos
     let newCi? := pci.mergeIntoOuter? ci?
     collectTacticInfos newCi? child acc
   | .node info children =>
-    let acc' := match ci?, info with
-      | some ci, .ofTacticInfo ti =>
-        if !ti.goalsBefore.isEmpty && !isSyntheticTacticContainer ti then acc.push (ci, ti) else acc
-      | _, _ => acc
-    children.foldl (fun a c => collectTacticInfos ci? c a) acc'
+    match ci?, info with
+    | some ci, .ofTacticInfo ti =>
+      if isVerboseOpaqueSubtree ti then acc  -- prune: skip node and all children
+      else
+        let acc' := if !ti.goalsBefore.isEmpty && !isSyntheticTacticContainer ti
+                    then acc.push (ci, ti) else acc
+        children.foldl (fun a c => collectTacticInfos ci? c a) acc'
+    | _, _ =>
+      children.foldl (fun a c => collectTacticInfos ci? c a) acc
   | .hole _ => acc
 
 /-- Try running `tacticStr` in the goal state captured by `ti`, using context `ci`.
