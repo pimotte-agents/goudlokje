@@ -224,6 +224,28 @@ def testBulletSeenAsStepInVerboseWaterproofFull : IO Unit := do
       s!"testBulletSeenAsStep: expected 0 shortcuts (single-tactic steps skipped), \
         got {results.size} at:{detail}")
 
+/-- Verify that every tactic syntax kind in VerboseWaterproofFull is classified.
+    Fails with the full table if any kind is `unknown` — add it to the appropriate
+    predicate in Analysis.lean and run again.
+    Run after adding new exercises to the fixture to catch newly appearing kinds. -/
+def testNoUnclassifiedTacticKinds : IO Unit := do
+  let kinds ← classifyTacticKinds "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  let unknowns := kinds.filter (fun (_, c) => c == .unknown)
+  unless unknowns.isEmpty do
+    let fmt (k : String) (c : TacticKindCategory) :=
+      let tag := match c with
+        | .synthetic   => "synthetic  "
+        | .boundary    => "boundary   "
+        | .opaque      => "opaque     "
+        | .opaqueChild => "opaqueChild"
+        | .userTactic  => "userTactic "
+        | .unknown     => "UNKNOWN    "
+      s!"  [{tag}] {k}"
+    let table := kinds.foldl (fun s (k, c) => s ++ "\n" ++ fmt k c) ""
+    throw (IO.userError
+      s!"testNoUnclassifiedTacticKinds: {unknowns.size} unknown kind(s) — \
+        add to isSyntheticTacticContainer / isVerboseStepBoundary / isVerboseOpaqueSubtree:{table}")
+
 /-- Regression test: a nested `Let's prove that` exercise (1.1.13_extra in
     VerboseWaterproofFull) must report 0 shortcuts when probed with
     "We conclude by hypothesis".  The `tacticLet'sProveThat_` tactic (unqualified)

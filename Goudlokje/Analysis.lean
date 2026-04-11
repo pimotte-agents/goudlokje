@@ -157,10 +157,11 @@ private partial def processCommandsCollectTrees
     Kind names discovered empirically by inspecting the Verbose English library. -/
 private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
   let k := ti.stx.getKind.toString
-  k == "tacticLet'sFirstProveThat_"           ||
-  k == "tacticLet'sNowProveThat_"             ||
-  k == "tacticLet'sProveThat_Works_"          ||
-  k == "Verbose.NameLess.tacticAssumeThat__"
+  k == "tacticLet'sFirstProveThat_"                              ||
+  k == "tacticLet'sNowProveThat_"                               ||
+  k == "tacticLet'sProveThat_Works_"                            ||
+  k == "Verbose.NameLess.tacticAssumeThat__"                    ||
+  k == "Verbose.English.tacticWeDiscussDependingOnWhether_Or_"
 
 /-- When `filterVerboseSteps` is true, filter tactic positions from declarations that
     contain Verbose step boundaries (e.g. `Let's first prove that …`).
@@ -324,6 +325,104 @@ def collectTacticKindsWithPositions (filePath : System.FilePath) :
   return tacticInfos.map fun (ci, ti) =>
     let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
     (ti.stx.getKind.toString, pos.line, pos.column)
+
+inductive TacticKindCategory where
+  | synthetic    -- filtered by isSyntheticTacticContainer; internal elaboration artifact
+  | boundary     -- filtered by isVerboseStepBoundary; delimits a Verbose proof step
+  | opaque       -- filtered by isVerboseOpaqueSubtree; subtree pruned entirely
+  | opaqueChild  -- only reachable inside an opaque subtree; never collected in practice
+  | userTactic   -- real Verbose tactic written by the student; valid probe target
+  | unknown      -- not yet classified; may need attention
+  deriving Repr, BEq
+
+/-- Classify every distinct tactic syntax kind found in `filePath` according to
+    how `collectTacticInfos` / `applyVerboseStepFilter` currently treats it.
+    Returns one entry per unique kind, sorted alphabetically.
+
+    Intended as a permanent debug utility: run it on a fixture file to check
+    whether all Verbose tactics are correctly classified.  Any `unknown` entry
+    is a candidate for `isSyntheticTacticContainer`, `isVerboseStepBoundary`, or
+    `isVerboseOpaqueSubtree`. -/
+private partial def collectAllTacticInfos
+    (ci? : Option ContextInfo) (tree : InfoTree)
+    (acc : Array (ContextInfo × TacticInfo)) : Array (ContextInfo × TacticInfo) :=
+  match tree with
+  | .context pci child =>
+    collectAllTacticInfos (pci.mergeIntoOuter? ci?) child acc
+  | .node info children =>
+    let acc' := match ci?, info with
+      | some ci, .ofTacticInfo ti =>
+        if !ti.goalsBefore.isEmpty then acc.push (ci, ti) else acc
+      | _, _ => acc
+    children.foldl (fun a c => collectAllTacticInfos ci? c a) acc'
+  | .hole _ => acc
+
+def classifyTacticKinds (filePath : System.FilePath) :
+    IO (Array (String × TacticKindCategory)) := do
+  Lean.initSearchPath (← Lean.findSysroot)
+  unsafe Lean.enableInitializersExecution
+  let input ← IO.FS.readFile filePath
+  let opts  := Elab.async.set Options.empty false
+  let inputCtx := Parser.mkInputContext input filePath.toString
+  let (header, parserState, _messages) ← Parser.parseHeader inputCtx
+  let (env, _msgs) ← processHeader header opts {} inputCtx
+  let initCmdState : Command.State := Command.mkState env {} opts
+  let initState : Frontend.State := {
+    commandState := initCmdState
+    parserState  := parserState
+    cmdPos       := 0
+  }
+  let ctx : Frontend.Context := { inputCtx }
+  -- Collect ALL tactic nodes before any filtering, using a raw traversal
+  -- so we can see what each filter would classify.
+  let (allTrees, finalState) ← processCommandsCollectTrees ctx initState #[]
+  let assignment := finalState.commandState.infoState.assignment
+  let resolvedTrees := allTrees.map fun t => t.substitute assignment
+  -- Raw collection: bypass isSyntheticTacticContainer and isVerboseOpaqueSubtree
+  -- so we see every node, not just the surviving ones.
+  let allInfos : Array (ContextInfo × TacticInfo) :=
+    resolvedTrees.foldl (fun acc t => collectAllTacticInfos none t acc) #[]
+  -- Build a deduplicated kind → category map
+  let categorize (k : String) : TacticKindCategory :=
+    if k == "Lean.Parser.Term.byTactic"             ||
+       k == "by"                                     ||
+       k == "Lean.Parser.Tactic.tacticSeq"           ||
+       k == "Lean.Parser.Tactic.tacticSeq1Indented"  ||
+       k == "Verbose.English.withSuggestions"         ||
+       k == "Verbose.French.withSuggestions"          ||
+       k == "withoutSuggestions"                      ||
+       k == "Lean.cdotTk"                            ||
+       k == "Lean.cdot"                              ||
+       k == "tacticStrg_assumption"
+    then .synthetic
+    else if k == "tacticLet'sFirstProveThat_"                             ||
+            k == "tacticLet'sNowProveThat_"                               ||
+            k == "tacticLet'sProveThat_Works_"                            ||
+            k == "Verbose.NameLess.tacticAssumeThat__"                    ||
+            k == "Verbose.English.tacticWeDiscussDependingOnWhether_Or_"
+    then .boundary
+    else if k == "tacticLet'sProveThat_"
+    then .opaque
+    -- Children of opaque subtrees: only reachable via collectAllTacticInfos
+    -- (which bypasses opaque pruning).  Never collected in real operation.
+    else if k == "Lean.Parser.Tactic.apply" ||
+            k == "Lean.Parser.Tactic.first" ||
+            k == "Lean.Parser.Tactic.show"  ||
+            k == "«;»"
+    then .opaqueChild
+    -- Real Verbose tactics written by students; valid probe targets
+    else if k == "tacticWeConcludeBy_"                        ||
+            k == "Verbose.English.tacticSince_WeConcludeThat_" ||
+            k == "Verbose.English.tacticSince_WeGetThat_Hence_"
+    then .userTactic
+    else .unknown
+  let kindMap := allInfos.foldl (fun acc (_, ti) =>
+    let k := ti.stx.getKind.toString
+    if acc.any (fun (k', _) => k' == k) then acc
+    else acc.push (k, categorize k)) #[]
+  -- Sort alphabetically by kind name
+  let sorted := kindMap.toList.mergeSort (fun (a, _) (b, _) => a < b)
+  return sorted.toArray
 
 /-- Keep only lines that are meaningful Lean context outside fenced `lean` blocks.
     This is used as a fallback for Verso/Waterproof `#doc` sources where the
