@@ -51,8 +51,9 @@ private def runTestInProcess (suite testName : String) : IO UInt32 := do
     TestSuite.Analysis.testVerboseExerciseDoesNotProbeBeforeProof; return 0
   | "Analysis", "testNoUnclassifiedTacticKinds" =>
     TestSuite.Analysis.testNoUnclassifiedTacticKinds; return 0
-  | "Analysis", "diagFilterStages" =>
-    TestSuite.Analysis.diagFilterStages; return 0
+  -- Diagnostic tool
+  -- | "Analysis", "diagFilterStages" =>
+    -- TestSuite.Analysis.diagFilterStages; return 0
   | "Analysis", "testBulletSeenAsStepInVerboseWaterproofFull" =>
     TestSuite.Analysis.testBulletSeenAsStepInVerboseWaterproofFull; return 0
   | "Analysis", "testNestedLetProveThatNoShortcuts" =>
@@ -139,7 +140,7 @@ private def analysisTests : Array IntTestSpec := #[
   { suite := "Analysis", name := "testSkipLastTacticNotReported" },
   { suite := "Analysis", name := "testVerboseExerciseDoesNotProbeBeforeProof" },
   { suite := "Analysis", name := "testNoUnclassifiedTacticKinds" },
-  { suite := "Analysis", name := "diagFilterStages" },
+  -- { suite := "Analysis", name := "diagFilterStages" },
   { suite := "Analysis", name := "testBulletSeenAsStepInVerboseWaterproofFull" },
   { suite := "Analysis", name := "testNestedLetProveThatNoShortcuts" },
   { suite := "Analysis", name := "testDiscussAssumeThatNoShortcuts" },

@@ -82,19 +82,20 @@ private def isSyntheticTacticContainer (ti : TacticInfo) : Bool :=
 /-- Return true if this `TacticInfo` node is an opaque Verbose tactic whose children
     are internal elaboration artifacts and must not be traversed.
 
-    `tacticLet'sProveThat_` (unqualified, used for nested "Let's prove that …") and
-    `tacticLet'sProveThat_Works_` (for existential witness steps, "Let's prove that N works")
-    both expand into internal elaboration nodes (`first`, `apply`, `refine`, `show`,
-    `done`, `«;»`, `tacticCheck_suitable`, etc.) that share the same source position.
-    Descending into them produces false-positive probe positions.
+    `tacticLet'sProveThat_` (unqualified, used for nested "Let's prove that …"),
+    `tacticLet'sProveThat_Works_` (for existential witness steps, "Let's prove that N works"),
+    and `tacticWeCompute_` all expand into internal elaboration nodes (`first`, `apply`,
+    `refine`, `show`, `done`, `«;»`, `tacticCheck_suitable`, `eqRefl`, etc.) that share
+    the same source position. Descending into them produces false-positive probe positions.
 
-    These nodes are collected themselves (as step-boundary markers for
-    `applyVerboseStepFilter`) but their children are not recursed into.
+    These nodes are collected themselves (as step-boundary markers or user-visible
+    tactics for `applyVerboseStepFilter`) but their children are not recursed into.
     See `collectTacticInfos` for the push-but-no-recurse handling. -/
 private def isVerboseOpaqueSubtree (ti : TacticInfo) : Bool :=
   let k := ti.stx.getKind.toString
   k == "tacticLet'sProveThat_" ||
-  k == "tacticLet'sProveThat_Works_"
+  k == "tacticLet'sProveThat_Works_" ||
+  k == "tacticWeCompute_"
 
 /-- Collect (ContextInfo, TacticInfo) pairs from an InfoTree.
     We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`.
@@ -402,13 +403,15 @@ def classifyTacticKinds (filePath : System.FilePath) :
        k == "Lean.cdot"                              ||
        k == "tacticStrg_assumption"
     then .synthetic
-    else if k == "tacticLet'sFirstProveThat_"                             ||
+        else if k == "tacticLet'sFirstProveThat_"                             ||
             k == "tacticLet'sNowProveThat_"                               ||
             k == "tacticLet'sProveThat_Works_"                            ||
             k == "tacticLet'sProveThat_"                                  ||
             k == "Verbose.NameLess.tacticAssumeThat__"                    ||
             k == "Verbose.English.tacticWeDiscussDependingOnWhether_Or_"
     then .boundary
+        else if k == "tacticWeCompute_"
+        then .opaque
     -- Children of opaque subtrees: only reachable via collectAllTacticInfos
     -- (which bypasses opaque pruning).  Never collected in real operation.
     else if k == "Lean.Parser.Tactic.apply"         ||
@@ -428,8 +431,7 @@ def classifyTacticKinds (filePath : System.FilePath) :
             k == "«;»"
     then .opaqueChild
     -- Real Verbose tactics written by students; valid probe targets
-    else if k == "tacticWeConcludeBy_"                        ||
-            k == "tacticWeCompute_"                           ||
+        else if k == "tacticWeConcludeBy_"                        ||
             k == "Verbose.English.tacticSince_WeConcludeThat_" ||
             k == "Verbose.English.tacticSince_WeGetThat_Hence_"
     then .userTactic
