@@ -51,6 +51,8 @@ private def runTestInProcess (suite testName : String) : IO UInt32 := do
     TestSuite.Analysis.testVerboseExerciseDoesNotProbeBeforeProof; return 0
   | "Analysis", "testNoUnclassifiedTacticKinds" =>
     TestSuite.Analysis.testNoUnclassifiedTacticKinds; return 0
+  | "Analysis", "diagFilterStages" =>
+    TestSuite.Analysis.diagFilterStages; return 0
   | "Analysis", "testBulletSeenAsStepInVerboseWaterproofFull" =>
     TestSuite.Analysis.testBulletSeenAsStepInVerboseWaterproofFull; return 0
   | "Analysis", "testNestedLetProveThatNoShortcuts" =>
@@ -59,6 +61,8 @@ private def runTestInProcess (suite testName : String) : IO UInt32 := do
     TestSuite.Analysis.testDiscussAssumeThatNoShortcuts; return 0
   | "Analysis", "testNestedDiscussNoShortcuts" =>
     TestSuite.Analysis.testNestedDiscussNoShortcuts; return 0
+  | "Analysis", "testExistentialWitnessNoShortcuts" =>
+    TestSuite.Analysis.testExistentialWitnessNoShortcuts; return 0
   | "Check", "testCheckNonZeroForUnexpectedShortcuts" =>
     TestSuite.Check.testCheckNonZeroForUnexpectedShortcuts; return 0
   | "Check", "testCheckZeroWithEmptyTactics" =>
@@ -135,10 +139,12 @@ private def analysisTests : Array IntTestSpec := #[
   { suite := "Analysis", name := "testSkipLastTacticNotReported" },
   { suite := "Analysis", name := "testVerboseExerciseDoesNotProbeBeforeProof" },
   { suite := "Analysis", name := "testNoUnclassifiedTacticKinds" },
+  { suite := "Analysis", name := "diagFilterStages" },
   { suite := "Analysis", name := "testBulletSeenAsStepInVerboseWaterproofFull" },
   { suite := "Analysis", name := "testNestedLetProveThatNoShortcuts" },
   { suite := "Analysis", name := "testDiscussAssumeThatNoShortcuts" },
   { suite := "Analysis", name := "testNestedDiscussNoShortcuts" },
+  { suite := "Analysis", name := "testExistentialWitnessNoShortcuts" },
 ]
 
 private def checkTests : Array IntTestSpec := #[

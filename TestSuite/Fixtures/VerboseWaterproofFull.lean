@@ -85,3 +85,19 @@ Proof:
       · We conclude by hypothesis
 QED
 ```
+
+```lean
+Example "1.2.25"
+  Given:
+  Assume:
+  Conclusion: ∃ n : ℤ, (∃ k : ℤ, k * k = n) ∧ (∃ l : ℤ, l * l * l + 1 = n)
+Proof:
+  Let's prove that 9 works
+  Let's first prove that ∃ k : ℤ, k * k = 9
+  · Let's prove that 3 works
+    We compute
+  Let's now prove that ∃ l : ℤ, l * l * l + 1 = 9
+  · Let's prove that 2 works
+    We compute
+QED
+```

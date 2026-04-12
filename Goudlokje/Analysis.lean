@@ -82,16 +82,19 @@ private def isSyntheticTacticContainer (ti : TacticInfo) : Bool :=
 /-- Return true if this `TacticInfo` node is an opaque Verbose tactic whose children
     are internal elaboration artifacts and must not be traversed.
 
-    `tacticLet'sProveThat_` (unqualified, used for nested "Let's prove that …") expands
-    into `Lean.Parser.Tactic.first`, `show`, `apply`, and `«;»` nodes that share the
-    same source position as the `Let's prove that` keyword.  Descending into them
-    produces false-positive probe positions at the step-boundary line, not at any
-    position where a student would write a tactic.  Pruning the subtree entirely is the
-    correct approach: the step-boundary node itself is already excluded by
-    `isVerboseStepBoundary`, and no real user tactic lives inside it. -/
+    `tacticLet'sProveThat_` (unqualified, used for nested "Let's prove that …") and
+    `tacticLet'sProveThat_Works_` (for existential witness steps, "Let's prove that N works")
+    both expand into internal elaboration nodes (`first`, `apply`, `refine`, `show`,
+    `done`, `«;»`, `tacticCheck_suitable`, etc.) that share the same source position.
+    Descending into them produces false-positive probe positions.
+
+    These nodes are collected themselves (as step-boundary markers for
+    `applyVerboseStepFilter`) but their children are not recursed into.
+    See `collectTacticInfos` for the push-but-no-recurse handling. -/
 private def isVerboseOpaqueSubtree (ti : TacticInfo) : Bool :=
   let k := ti.stx.getKind.toString
-  k == "tacticLet'sProveThat_"
+  k == "tacticLet'sProveThat_" ||
+  k == "tacticLet'sProveThat_Works_"
 
 /-- Collect (ContextInfo, TacticInfo) pairs from an InfoTree.
     We use `PartialContextInfo.mergeIntoOuter?` to resolve the full `ContextInfo`.
@@ -109,7 +112,10 @@ private partial def collectTacticInfos
   | .node info children =>
     match ci?, info with
     | some ci, .ofTacticInfo ti =>
-      if isVerboseOpaqueSubtree ti then acc  -- prune: skip node and all children
+      if isVerboseOpaqueSubtree ti then
+        -- Push the node itself (it is a step boundary for applyVerboseStepFilter)
+        -- but do NOT recurse into children (they are internal elaboration artifacts).
+        if !ti.goalsBefore.isEmpty then acc.push (ci, ti) else acc
       else
         let acc' := if !ti.goalsBefore.isEmpty && !isSyntheticTacticContainer ti
                     then acc.push (ci, ti) else acc
@@ -160,6 +166,7 @@ private def isVerboseStepBoundary (ti : TacticInfo) : Bool :=
   k == "tacticLet'sFirstProveThat_"                              ||
   k == "tacticLet'sNowProveThat_"                               ||
   k == "tacticLet'sProveThat_Works_"                            ||
+  k == "tacticLet'sProveThat_"                                  ||
   k == "Verbose.NameLess.tacticAssumeThat__"                    ||
   k == "Verbose.English.tacticWeDiscussDependingOnWhether_Or_"
 
@@ -398,20 +405,31 @@ def classifyTacticKinds (filePath : System.FilePath) :
     else if k == "tacticLet'sFirstProveThat_"                             ||
             k == "tacticLet'sNowProveThat_"                               ||
             k == "tacticLet'sProveThat_Works_"                            ||
+            k == "tacticLet'sProveThat_"                                  ||
             k == "Verbose.NameLess.tacticAssumeThat__"                    ||
             k == "Verbose.English.tacticWeDiscussDependingOnWhether_Or_"
     then .boundary
-    else if k == "tacticLet'sProveThat_"
-    then .opaque
     -- Children of opaque subtrees: only reachable via collectAllTacticInfos
     -- (which bypasses opaque pruning).  Never collected in real operation.
-    else if k == "Lean.Parser.Tactic.apply" ||
-            k == "Lean.Parser.Tactic.first" ||
-            k == "Lean.Parser.Tactic.show"  ||
+    else if k == "Lean.Parser.Tactic.apply"         ||
+            k == "Lean.Parser.Tactic.done"           ||
+            k == "Lean.Parser.Tactic.eqRefl"         ||
+            k == "Lean.Parser.Tactic.first"          ||
+            k == "Lean.Parser.Tactic.focus"          ||
+            k == "Lean.Parser.Tactic.paren"          ||
+            k == "Lean.Parser.Tactic.refine"         ||
+            k == "Lean.Parser.Tactic.seq1"           ||
+            k == "Lean.Parser.Tactic.show"           ||
+            k == "Lean.Parser.Tactic.tacticIterate____" ||
+            k == "Lean.Parser.Tactic.tacticRfl"      ||
+            k == "Lean.Parser.Tactic.tacticTry_"     ||
+            k == "focus"                             ||
+            k == "tacticCheck_suitable"              ||
             k == "«;»"
     then .opaqueChild
     -- Real Verbose tactics written by students; valid probe targets
     else if k == "tacticWeConcludeBy_"                        ||
+            k == "tacticWeCompute_"                           ||
             k == "Verbose.English.tacticSince_WeConcludeThat_" ||
             k == "Verbose.English.tacticSince_WeGetThat_Hence_"
     then .userTactic
@@ -493,16 +511,20 @@ private def analyzeInput
     let assignment := newState.commandState.infoState.assignment
     let resolvedTrees := newState.commandState.infoState.trees.toArray.map fun t =>
       t.substitute assignment
+    -- Collect raw tactic infos from ALL trees of this command before filtering.
+    -- A single Verbose Exercise command can produce multiple InfoTree nodes where
+    -- step-boundary tactics (e.g. `tacticLet'sFirstProveThat_`) and their body
+    -- tactics (e.g. `tacticWeCompute_`) land in different trees.  Filtering per
+    -- tree would make `applyVerboseStepFilter` miss the boundaries and leave body
+    -- tactics unfiltered.  Combining all trees first ensures boundaries and bodies
+    -- are visible together before the step filter runs.
+    let allRaw := resolvedTrees.foldl (fun acc t =>
+      acc ++ collectTacticInfos none t #[]) #[]
     let tacticInfos :=
-      resolvedTrees.foldl (fun acc t =>
-        let raw := collectTacticInfos none t #[]
-        -- applyVerboseStepFilter applies per-step skip-last for Verbose boundary groups;
-        -- non-boundary groups pass through unchanged.  skipLastPerDeclaration then handles
-        -- the per-declaration last-step skip for all groups (including those already
-        -- filtered, and isolated single-tactic trees from Waterproof/Verso splitting).
-        let filtered :=
-          if filterVerboseSteps then applyVerboseStepFilter raw inputCtx.fileMap else raw
-        acc ++ skipLastPerDeclaration filtered inputCtx.fileMap) #[]
+      let filtered :=
+        if filterVerboseSteps then applyVerboseStepFilter allRaw inputCtx.fileMap
+        else allRaw
+      skipLastPerDeclaration filtered inputCtx.fileMap
     let mut commandProbeAttempts := 0
     let mut commandSuccesses := 0
     for (ci, ti) in tacticInfos do
@@ -553,5 +575,46 @@ def analyzeFile
     | none =>
       pure directResults
   return merged.foldl (fun acc r => if acc.contains r then acc else acc.push r) #[]
+
+/-- Debug utility: run the filter pipeline on `filePath` and return a human-readable
+    log showing, for each command, the raw tactic positions, positions after
+    `applyVerboseStepFilter`, and positions after `skipLastPerDeclaration`.
+    Operates on the fence-overlay (same path as `analyzeFile`). -/
+def dumpFilterStages (filePath : System.FilePath) : IO String := do
+  Lean.initSearchPath (← Lean.findSysroot)
+  unsafe Lean.enableInitializersExecution
+  let input ← IO.FS.readFile filePath
+  let src := (extractLeanFenceOverlay? input).getD input
+  let opts := Elab.async.set Options.empty false
+  let inputCtx := Parser.mkInputContext src filePath.toString
+  let (header, parserState, _) ← Parser.parseHeader inputCtx
+  let (env, _) ← processHeader header opts {} inputCtx
+  let initCmdState := Command.mkState env {} opts
+  let ctx : Frontend.Context := { inputCtx }
+  let initState : Frontend.State := { commandState := initCmdState, parserState, cmdPos := 0 }
+  let fmtRow (ci : ContextInfo) (ti : TacticInfo) :=
+    let pos := ci.fileMap.toPosition (ti.stx.getPos?.getD 0)
+    s!"\n      {pos.line}:{pos.column} {ti.stx.getKind}"
+  let mut log := ""
+  let mut state := initState
+  let mut cmdIdx := 0
+  let mut done := false
+  while !done do
+    let (isDone, newState) ← (Frontend.processCommand.run ctx).run state
+    let assignment := newState.commandState.infoState.assignment
+    let resolvedTrees := newState.commandState.infoState.trees.toArray.map fun t =>
+      t.substitute assignment
+    let raw := resolvedTrees.foldl (fun acc t => acc ++ collectTacticInfos none t #[]) #[]
+    if !raw.isEmpty then
+      let filtered  := applyVerboseStepFilter raw inputCtx.fileMap
+      let skipped   := skipLastPerDeclaration filtered inputCtx.fileMap
+      let rawLog    := raw.foldl      (fun s (ci, ti) => s ++ fmtRow ci ti) ""
+      let filtLog   := filtered.foldl (fun s (ci, ti) => s ++ fmtRow ci ti) ""
+      let skipLog   := skipped.foldl  (fun s (ci, ti) => s ++ fmtRow ci ti) ""
+      log := log ++ s!"\n  cmd {cmdIdx}:\n    [raw]{rawLog}\n    [filtered]{filtLog}\n    [skipped]{skipLog}"
+    state := newState
+    done := isDone
+    cmdIdx := cmdIdx + 1
+  return log
 
 end Goudlokje

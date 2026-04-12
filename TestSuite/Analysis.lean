@@ -285,6 +285,23 @@ def testNestedDiscussNoShortcuts : IO Unit := do
     throw (IO.userError
       s!"testNestedDiscuss: expected 0 shortcuts, got {results.size} at:{detail}")
 
+/-- Diagnostic: trace filter stages for VerboseWaterproofFull. Always throws. -/
+def diagFilterStages : IO Unit := do
+  let log ← dumpFilterStages "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  throw (IO.userError s!"filter stages:{log}")
+
+/-- Regression test: an existential witness exercise using `Let's prove that N works`
+    and `We compute` (Example "1.2.25" in VerboseWaterproofFull) must report 0
+    shortcuts when probed with "We conclude by hypothesis". -/
+def testExistentialWitnessNoShortcuts : IO Unit := do
+  let fixturePath : System.FilePath := "TestSuite/Fixtures/VerboseWaterproofFull.lean"
+  let results ← analyzeFile fixturePath #["We conclude by hypothesis"]
+    (filterVerboseSteps := true)
+  unless results.size == 0 do
+    let detail := results.foldl (fun s r => s ++ s!" {r.line}:{r.column}") ""
+    throw (IO.userError
+      s!"testExistentialWitness: expected 0 shortcuts, got {results.size} at:{detail}")
+
 def runAll : IO Unit := do
   testDetectsDecideShortcut; IO.println "  ✓ testDetectsDecideShortcut"
   testNoTacticsNoResults;    IO.println "  ✓ testNoTacticsNoResults"
