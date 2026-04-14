@@ -3,6 +3,7 @@ import Goudlokje.Discovery
 import Goudlokje.Analysis
 import Goudlokje.TestFile
 import Goudlokje.Shortcuts
+import Goudlokje.Lint
 
 namespace Goudlokje
 

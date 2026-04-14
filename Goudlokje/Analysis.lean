@@ -99,7 +99,7 @@ private def tryTacticAt
 /-- Process commands one at a time, accumulating info trees from each command.
     `elabCommandTopLevel` resets `infoState.trees` at the start of each command,
     so we must collect per-command trees before the next command overwrites them. -/
-private partial def processCommandsCollectTrees
+partial def processCommandsCollectTrees
     (ctx : Frontend.Context)
     (state : Frontend.State)
     (acc : Array InfoTree) : IO (Array InfoTree × Frontend.State) := do
@@ -246,7 +246,7 @@ def mkEnvCache : IO EnvCache := IO.mkRef #[]
 /-- Look up or build the environment for a set of imports.
     `key` uniquely identifies the import set (e.g. the raw header text).
     `build` is called only on a cache miss to produce the `Environment`. -/
-private def getOrBuildEnv
+def getOrBuildEnv
     (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
   let cached ← cache.get
   match cached.find? (fun (k, _) => k == key) with
