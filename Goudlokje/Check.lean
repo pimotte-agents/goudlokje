@@ -18,7 +18,7 @@ private structure WorksheetCheckSummary where
 
 private def checkWorksheet
     (ws : WorksheetEntry) (cfg : Config)
-    (debugMode : Bool) (verbose : Bool) (envCache : EnvCache) : IO WorksheetCheckSummary := do
+    (debugMode : Bool) (verbose : Bool) : IO WorksheetCheckSummary := do
   let analyzed ← analyzeFileIsolated ws.sourcePath cfg.tactics cfg.filterVerboseSteps debugMode verbose
   let found := analyzed.results
   let testPath := ws.testPath.getD (ws.sourcePath.withExtension "test.json")
@@ -28,8 +28,8 @@ private def checkWorksheet
     match shortcut with
     | .unexpected _ => acc + 1
     | .expected _ => acc) 0
-  -- Run lint checks and classify against the test file, sharing the env cache.
-  let lintFound ← lintFile ws.sourcePath (some envCache)
+  -- Run lint checks in an isolated subprocess to avoid accumulating memory.
+  let lintFound ← lintFileIsolated ws.sourcePath
   let lintCr := classifyLint lintFound (← tf)
   return {
     probeResultCount := found.size
@@ -56,11 +56,10 @@ def runCheck
       IO.println s!"  {ws.sourcePath}"
   if debugMode then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
-  let envCache ← mkEnvCache
   let mut unexpectedCount := 0
   for ws in worksheets do
     IO.println s!"Checking {ws.sourcePath}..."
-    let summary ← checkWorksheet ws cfg debugMode verbose envCache
+    let summary ← checkWorksheet ws cfg debugMode verbose
     if debugMode then
       IO.println s!"  Found {summary.probeResultCount} probe result(s), {summary.shortcuts.size} shortcut(s), {summary.stale.size} stale entry/entries"
       if summary.probeAttempts == 0 && !cfg.tactics.isEmpty then

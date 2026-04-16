@@ -182,6 +182,8 @@ def main (args : List String) : IO UInt32 := do
   -- with __probe_file__ args.  Handle that here so it doesn't fall through to
   -- the orchestrator and cause an exponential process explosion.
   | "__probe_file__" :: rest       => return (← Goudlokje.runProbeWorkerCli rest)
+  -- lintFileIsolated spawns the current binary with __lint_file__ args.
+  | "__lint_file__"  :: rest       => return (← Goudlokje.runLintWorkerCli rest)
   | _ => pure ()
   -- Orchestrator: run each suite / test in its own subprocess.
   let appPath ← IO.appPath

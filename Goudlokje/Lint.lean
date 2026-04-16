@@ -44,7 +44,7 @@ structure LintResult where
   /-- Check identifier: "B1" (raw tactic), "B2" (type annotation), "B3" (sorry). -/
   check   : String
   message : String
-  deriving Repr, BEq, Inhabited
+  deriving Repr, BEq, Inhabited, Lean.ToJson, Lean.FromJson
 
 -- ============================================================
 -- CheckB3: sorry detection via TermInfo

@@ -1,4 +1,5 @@
 import Goudlokje.Lint
+import Goudlokje.ProbeWorker
 import Goudlokje.TestFile
 
 namespace TestSuite.Lint
@@ -116,6 +117,19 @@ def testB2NoFalsePositivesOnVerboseProofs : IO Unit := do
     throw (IO.userError
       s!"testB2NoFalsePositivesOnVerboseProofs: expected 0 B2 violations, got {b2.size}: {msgs}")
 
+/-- `lintFileIsolated` must produce the same B3 violations as the direct `lintFile` call. -/
+def testLintFileIsolatedMatchesDirectCall : IO Unit := do
+  let direct ← lintFile "TestSuite/Fixtures/LintB3.lean" none
+  let isolated ← lintFileIsolated "TestSuite/Fixtures/LintB3.lean"
+  unless direct.size == isolated.size do
+    throw (IO.userError
+      s!"testLintFileIsolatedMatchesDirectCall: direct={direct.size} isolated={isolated.size}")
+  for r in direct do
+    unless isolated.any (fun s => s.file == r.file && s.line == r.line &&
+                                   s.column == r.column && s.check == r.check) do
+      throw (IO.userError
+        s!"testLintFileIsolatedMatchesDirectCall: {r.check}@{r.line}:{r.column} missing from isolated results")
+
 def runAll : IO Unit := do
   testAllLintChecks
   IO.println "  ✓ testAllLintChecks"
@@ -127,5 +141,7 @@ def runAll : IO Unit := do
   IO.println "  ✓ testB1NoFalsePositivesOnVerboseLines"
   testB2NoFalsePositivesOnVerboseProofs
   IO.println "  ✓ testB2NoFalsePositivesOnVerboseProofs"
+  testLintFileIsolatedMatchesDirectCall
+  IO.println "  ✓ testLintFileIsolatedMatchesDirectCall"
 
 end TestSuite.Lint

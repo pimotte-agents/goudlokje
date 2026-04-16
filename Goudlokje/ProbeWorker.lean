@@ -1,6 +1,7 @@
 import Lean.Data.Json
 import Lean.Data.Json.FromToJson
 import Goudlokje.Analysis
+import Goudlokje.Lint
 
 namespace Goudlokje
 
@@ -74,6 +75,55 @@ def runProbeWorkerCli (args : List String) : IO UInt32 := do
     pure 0
   | _ =>
     IO.eprintln "usage: __probe_file__ <file> <filterVerboseSteps> <debug> <verbose> [tactic ...]"
+    pure 2
+
+-- ============================================================
+-- Lint worker: runs lintFile in an isolated subprocess
+-- ============================================================
+
+def lintWorkerSentinel : String := "__GOUDLOKJE_LINT_RESULT__"
+
+structure LintWorkerResult where
+  results : Array LintResult
+  deriving Repr, Inhabited, Lean.ToJson, Lean.FromJson
+
+private def parseLintWorkerOutput (stdout : String) : IO (String × LintWorkerResult) := do
+  match stdout.splitOn (lintWorkerSentinel ++ "\n") with
+  | [logs, jsonText] =>
+    let json ← IO.ofExcept <| Lean.Json.parse jsonText.trimAscii.toString
+    let payload ← IO.ofExcept <| Lean.fromJson? json
+    pure (logs, payload)
+  | _ =>
+    throw <| IO.userError "lint worker did not return a parseable payload"
+
+def lintFileIsolated (filePath : System.FilePath) : IO (Array LintResult) := do
+  let appPath ← IO.appPath
+  let proc ← IO.Process.output {
+    cmd  := appPath.toString
+    args := #["__lint_file__", filePath.toString]
+  }
+  unless proc.stderr.isEmpty do
+    IO.eprint proc.stderr
+  unless proc.exitCode == 0 do
+    if !proc.stdout.isEmpty then
+      IO.print proc.stdout
+    throw <| IO.userError s!"lint worker failed for {filePath} with exit code {proc.exitCode}"
+  let (logs, payload) ← parseLintWorkerOutput proc.stdout
+  unless logs.isEmpty do
+    IO.print logs
+  pure payload.results
+
+def runLintWorkerCli (args : List String) : IO UInt32 := do
+  match args with
+  | [fileArg] =>
+    let filePath : System.FilePath := fileArg
+    let results ← lintFile filePath none
+    let payload : LintWorkerResult := { results }
+    IO.println lintWorkerSentinel
+    IO.println (Lean.toJson payload).compress
+    pure 0
+  | _ =>
+    IO.eprintln "usage: __lint_file__ <file>"
     pure 2
 
 end Goudlokje

@@ -31,7 +31,6 @@ def runUpdate
       IO.println s!"  {ws.sourcePath}"
   if debugMode then
     IO.println s!"Probing with {cfg.tactics.size} tactic(s): {", ".intercalate cfg.tactics.toList}"
-  let envCache ← mkEnvCache
   for ws in worksheets do
     IO.println s!"Updating {ws.sourcePath}..."
     let analyzed ← analyzeFileIsolated ws.sourcePath cfg.tactics cfg.filterVerboseSteps debugMode verbose
@@ -75,8 +74,8 @@ def runUpdate
       if remove then
         newExpected := newExpected.filter (· != s.entry)
 
-    -- Run lint checks and classify against the current test file, sharing the env cache.
-    let lintFound ← lintFile ws.sourcePath (some envCache)
+    -- Run lint checks in an isolated subprocess to avoid accumulating memory.
+    let lintFound ← lintFileIsolated ws.sourcePath
     let lintCr := classifyLint lintFound tf
     let mut newLint := tf.lint
 
