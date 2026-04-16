@@ -6,6 +6,7 @@ import TestSuite.Discovery
 import TestSuite.Analysis
 import TestSuite.Check
 import TestSuite.Update
+import TestSuite.Lint
 
 -- Dispatch for lightweight suites: run all tests in-process.
 private def runSuiteInProcess (name : String) : IO UInt32 := do
@@ -14,6 +15,7 @@ private def runSuiteInProcess (name : String) : IO UInt32 := do
   | "TestFile"  => TestSuite.TestFile.runAll;  return 0
   | "Shortcuts" => TestSuite.Shortcuts.runAll; return 0
   | "Discovery" => TestSuite.Discovery.runAll; return 0
+  | "Lint"      => TestSuite.Lint.runAll;      return 0
   | other       => IO.eprintln s!"unknown suite: {other}"; return 2
 
 -- Dispatch for integration tests: run a single named test in-process.
@@ -74,6 +76,10 @@ private def runTestInProcess (suite testName : String) : IO UInt32 := do
     TestSuite.Check.testCheckVerboseMode; return 0
   | "Check", "testCheckGracefulOnImportError" =>
     TestSuite.Check.testCheckGracefulOnImportError; return 0
+  | "Check", "testCheckVerboseWaterproofFullExactlyOneShortcut" =>
+    TestSuite.Check.testCheckVerboseWaterproofFullExactlyOneShortcut; return 0
+  | "Check", "testCheckCountsB3LintViolation" =>
+    TestSuite.Check.testCheckCountsB3LintViolation; return 0
   | "Update", "testUpdateAllCreatesTestFile" =>
     TestSuite.Update.testUpdateAllCreatesTestFile; return 0
   | "Update", "testUpdateAllIdempotent" =>
@@ -154,6 +160,8 @@ private def checkTests : Array IntTestSpec := #[
   { suite := "Check", name := "testCheckDebugMode" },
   { suite := "Check", name := "testCheckVerboseMode" },
   { suite := "Check", name := "testCheckGracefulOnImportError" },
+  { suite := "Check", name := "testCheckVerboseWaterproofFullExactlyOneShortcut" },
+  { suite := "Check", name := "testCheckCountsB3LintViolation" },
 ]
 
 private def updateTests : Array IntTestSpec := #[
@@ -174,6 +182,8 @@ def main (args : List String) : IO UInt32 := do
   -- with __probe_file__ args.  Handle that here so it doesn't fall through to
   -- the orchestrator and cause an exponential process explosion.
   | "__probe_file__" :: rest       => return (← Goudlokje.runProbeWorkerCli rest)
+  -- lintFileIsolated spawns the current binary with __lint_file__ args.
+  | "__lint_file__"  :: rest       => return (← Goudlokje.runLintWorkerCli rest)
   | _ => pure ()
   -- Orchestrator: run each suite / test in its own subprocess.
   let appPath ← IO.appPath
@@ -181,7 +191,8 @@ def main (args : List String) : IO UInt32 := do
   for (name, label) in #[("Config",    "Config tests"),
                           ("TestFile",  "TestFile tests"),
                           ("Shortcuts", "Shortcuts tests"),
-                          ("Discovery", "Discovery tests")] do
+                          ("Discovery", "Discovery tests"),
+                          ("Lint",      "Lint check tests")] do
     unless ← spawnSuite appPath name label do anyFailed := true
     IO.println ""
   for (label, tests) in #[("Analysis integration tests", analysisTests),

@@ -147,7 +147,7 @@ private def tryTacticAt
 /-- Process commands one at a time, accumulating info trees from each command.
     `elabCommandTopLevel` resets `infoState.trees` at the start of each command,
     so we must collect per-command trees before the next command overwrites them. -/
-private partial def processCommandsCollectTrees
+partial def processCommandsCollectTrees
     (ctx : Frontend.Context)
     (state : Frontend.State)
     (acc : Array InfoTree) : IO (Array InfoTree × Frontend.State) := do
@@ -549,6 +549,31 @@ private def analyzeInput
     done := isDone
     cmdIdx := cmdIdx + 1
   return results.foldl (fun acc r => if acc.contains r then acc else acc.push r) #[]
+
+/-- A cache mapping import-header text to compiled environments.
+
+    Reusing environments across files with the same imports avoids redundant
+    `.olean` loading, which is the dominant cost when processing files that
+    transitively import Mathlib (e.g. via `Verbose.English.All`).  The cache
+    key is the raw import-header text, so files with identical imports share
+    one compiled `Environment` instead of each paying the full loading cost. -/
+abbrev EnvCache := IO.Ref (Array (String × Environment))
+
+/-- Create a fresh empty environment cache. -/
+def mkEnvCache : IO EnvCache := IO.mkRef #[]
+
+/-- Look up or build the environment for a set of imports.
+    `key` uniquely identifies the import set (e.g. the raw header text).
+    `build` is called only on a cache miss to produce the `Environment`. -/
+def getOrBuildEnv
+    (cache : EnvCache) (key : String) (build : IO Environment) : IO Environment := do
+  let cached ← cache.get
+  match cached.find? (fun (k, _) => k == key) with
+  | some (_, env) => return env
+  | none =>
+    let env ← build
+    cache.modify (fun arr => arr.push (key, env))
+    return env
 
 /-- Analyse a single Lean source file, returning every (position, tactic) pair
     where a probe tactic succeeds.

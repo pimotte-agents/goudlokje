@@ -5,3 +5,4 @@ import Goudlokje.Analysis
 import Goudlokje.ProbeWorker
 import Goudlokje.Shortcuts
 import Goudlokje.Check
+import Goudlokje.Lint

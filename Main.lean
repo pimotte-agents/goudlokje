@@ -76,5 +76,7 @@ def main (args : List String) : IO UInt32 :=
   match args with
   | "__probe_file__" :: workerArgs =>
     Goudlokje.runProbeWorkerCli workerArgs
+  | "__lint_file__" :: workerArgs =>
+    Goudlokje.runLintWorkerCli workerArgs
   | _ =>
     goudlokjeCmd.validate args
