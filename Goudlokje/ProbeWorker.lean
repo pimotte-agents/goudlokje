@@ -1,7 +1,6 @@
 import Lean.Data.Json
 import Lean.Data.Json.FromToJson
 import Goudlokje.Analysis
-import Goudlokje.TestFile
 import Goudlokje.Lint
 
 namespace Goudlokje
