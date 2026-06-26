@@ -29,8 +29,8 @@ lean_exe "debug_analysis" where
   root := `DebugAnalysis
   moreLinkArgs := #["-rdynamic"]
 
-require "leanprover" / "lean4-cli" @ git "v4.29.0-rc6"
+require "leanprover" / "lean4-cli" @ git "v4.31.0"
 require "waterproof-genre"
       from git "https://github.com/impermeable/waterproof-genre" @ "feature/smaller-genre"
 require "verbose-lean4"
-      from git "https://github.com/impermeable/verbose-lean4" @ "update/v4.29.0-rc6"
+      from git "https://github.com/PatrickMassot/verbose-lean4" @ "v4.31.0"
