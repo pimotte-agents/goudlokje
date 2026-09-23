@@ -136,15 +136,19 @@ def collectSteps (cmd : Syntax) (trees : PersistentArray InfoTree) : Array Step 
   return steps.qsort fun a b => a.stx.getPos?.get!.byteIdx < b.stx.getPos?.get!.byteIdx
 
 /-- The name of the exercise declared by `cmd`: the title of a Verbose `Exercise`/`Example`, the
-    name of a named declaration, or `"example"`. -/
+    name of a named declaration, or for an anonymous `example` its statement (e.g.
+    `example : 1 + 1 = 2`), which tells apart the examples in a file. -/
 def exerciseName (env : Environment) (cmd : Syntax) : String :=
   if isVerboseKind env cmd.getKind then
-    match cmd.getArgs.findSome? (·.isStrLit?) with
-    | some title => title
+    (cmd.getArgs.findSome? (·.isStrLit?)).getD "example"
+  else if let some declId := cmd.find? (·.isOfKind ``Parser.Command.declId) then
+    declId[0].getId.toString
+  else if let some sig := cmd.find? (·.isOfKind ``Parser.Command.optDeclSig) then
+    let statement := (sig.getSubstring? (withLeading := false) (withTrailing := false)).map
+      fun s => " ".intercalate (s.toString.splitToList Char.isWhitespace |>.filter (!·.isEmpty))
+    match statement with
+    | some statement => s!"example {statement}"
     | none => "example"
-  else
-    match cmd.find? (·.isOfKind ``Parser.Command.declId) with
-    | some declId => declId[0].getId.toString
-    | none => "example"
+  else "example"
 
 end Goudlokje

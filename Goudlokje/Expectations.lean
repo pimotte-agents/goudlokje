@@ -101,33 +101,23 @@ def Expectations.get (e : Expectations) (name : String) : ExerciseExpectations :
 def testJsonPath (worksheet : System.FilePath) : System.FilePath :=
   worksheet.withExtension "test.json"
 
-/-- The result of reading a `.test.json` file. -/
-structure LoadedExpectations where
-  expectations : Expectations
-  /-- Hash of the file contents (0 if there is no file). Recorded by the linters so that
-      `goudlokje check` can detect files that changed since the worksheet was built. -/
-  contentHash  : UInt64
-  deriving Inhabited
-
 /-- Parses the contents of a `.test.json` file. -/
 def parseExpectations (contents : String) : Except String Expectations := do
   fromJson? (← Json.parse contents)
 
 /-- Reads the `.test.json` file at `path`; a missing file means no expectations. -/
-def loadExpectations (path : System.FilePath) : IO (Except String LoadedExpectations) := do
-  unless ← path.pathExists do return .ok { expectations := {}, contentHash := 0 }
-  let contents ← IO.FS.readFile path
-  return (parseExpectations contents).map ({ expectations := ·, contentHash := hash contents })
-    |>.mapError (s!"{path}: " ++ ·)
+def loadExpectations (path : System.FilePath) : IO (Except String Expectations) := do
+  unless ← path.pathExists do return .ok {}
+  return parseExpectations (← IO.FS.readFile path) |>.mapError (s!"{path}: " ++ ·)
 
 /-- Persists expectations as pretty-printed JSON. -/
 def saveExpectations (path : System.FilePath) (e : Expectations) : IO Unit :=
   IO.FS.writeFile path ((toJson e).pretty ++ "\n")
 
-private initialize expectationsCache : FileCache (Except String LoadedExpectations) ← IO.mkRef {}
+private initialize expectationsCache : FileCache (Except String Expectations) ← IO.mkRef {}
 
 /-- The expectations of the worksheet being elaborated. -/
-def getExpectations : Elab.Command.CommandElabM (Except String LoadedExpectations) := do
+def getExpectations : Elab.Command.CommandElabM (Except String Expectations) := do
   let path := testJsonPath (← getFileName)
   expectationsCache.get path (loadExpectations path)
 

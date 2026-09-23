@@ -19,4 +19,27 @@ register_option linter.goudlokje.explain : Bool := {
   descr := "(Goudlokje) report the proof steps Goudlokje finds in each command, for debugging"
 }
 
+register_option linter.goudlokje.shortcut : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report steps where a probe tactic (`goudlokje.probes`) closes the goal \
+    before the end of the proof"
+}
+
+register_option goudlokje.probes : String := {
+  defValue := ""
+  descr := "(Goudlokje) the probe tactics, separated by `;;`, e.g. \"decide;; simp;; norm_num\""
+}
+
+register_option goudlokje.probeHeartbeats : Nat := {
+  defValue := 100
+  descr := "(Goudlokje) the heartbeat budget of a single probe, in thousands (like \
+    `maxHeartbeats`); a probe that runs out does not count as a shortcut"
+}
+
+register_option goudlokje.resultsFile : String := {
+  defValue := ""
+  descr := "(Goudlokje) if set, all findings are appended to this file as JSON lines; \
+    used by `goudlokje update`"
+}
+
 end Goudlokje

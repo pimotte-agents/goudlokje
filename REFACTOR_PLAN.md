@@ -202,6 +202,27 @@ by running it.
 - **Tests.** The new tests live in the `Tests` library (`@[test_driver]`, run with `lake test`) and
   use `#guard_msgs`/`#guard`.
 
+## Phase 2 results
+
+- `Goudlokje/Linter/Shortcut.lean`, `Probe.lean`, `Report.lean`. Options: `linter.goudlokje.shortcut`
+  (default on), `goudlokje.probes` (`;;`-separated), `goudlokje.probeHeartbeats` (default 100,
+  i.e. 100k heartbeats), `goudlokje.resultsFile`.
+- **Probes.** Each probe runs through Mathlib's `ContextInfo.runTactic` with an explicit heartbeat
+  budget; messages are discarded. Outcomes are cached per (goal fingerprint, probe) within a
+  command; goals that still contain metavariables are not cached.
+- **Messages.** An unexpected shortcut is an **error** at the step (tagged as a linter message);
+  a stale expected shortcut is a warning at the exercise.
+- **Verbose goal blocking.** Verbose wraps pending goals in `goalBlocker` until
+  `Let's now prove that`, so probes that do not unfold it cannot fire there. The first
+  reportable shortcut in such a chain is the step after it. `tauto` does see through it.
+- **Exercise names.** An anonymous `example` is named after its statement
+  (`example : 1 + 1 = 2`), so several examples in one file no longer collide in `.test.json`.
+- **S4 simplified.** Instead of recording a hash, `goudlokje check` rebuilds a worksheet whose
+  `.test.json` is newer than its `.olean`.
+- **Timing.** All 19 fixtures with the six configured probes take **4.0 s** with 8 parallel `lean`
+  processes, against 30.1 s for the old `check`. That is roughly the cost of elaboration alone
+  (4.7 s in B0).
+
 ## Risks
 
 - `#doc` option propagation (S2) and the double linting there (S1) are the main unknowns.

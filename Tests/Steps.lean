@@ -9,7 +9,7 @@ set_option linter.goudlokje.explain true
 
 -- Verbose step boundaries start new chains; `show` continues the chain of the goal it changes.
 /--
-warning: exercise "example":
+warning: exercise "example : 1 + 1 = 2 ∧ 2 + 2 = 4":
   step 1: tacticLet'sFirstProveThat_ [verbose, chain 0]
   step 2: Lean.Parser.Tactic.show [chain 1]
   step 3: Mathlib.Tactic.normNum [closes]
@@ -64,9 +64,10 @@ theorem twoGoals : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
     rfl
   · rfl
 
--- Macro expansions (here of the Verbose `We conclude by`) are not steps.
+-- Macro expansions (here of the Verbose `We conclude by`) are not steps. Anonymous examples are
+-- named after their statement.
 /--
-warning: exercise "example":
+warning: exercise "example (p q : Prop) (hp : p) (hq : q) : p ∧ q":
   step 1: tacticLet'sFirstProveThat_ [verbose, chain 0]
   step 2: tacticWeConcludeBy_ [verbose, closes]
   step 3: tacticLet'sNowProveThat_ [verbose, chain 1]
