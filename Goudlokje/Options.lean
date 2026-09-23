@@ -58,12 +58,6 @@ register_option goudlokje.probeHeartbeats : Nat := {
     `maxHeartbeats`); a probe that runs out does not count as a shortcut"
 }
 
-register_option goudlokje.resultsFile : String := {
-  defValue := ""
-  descr := "(Goudlokje) if set, all findings are appended to this file as JSON lines; \
-    used by `goudlokje update`"
-}
-
 /-- Splits a `;;`-separated list option (such as `goudlokje.probes`) into its trimmed, non-empty
     items. -/
 def splitListOption (value : String) : Array String :=

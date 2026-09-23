@@ -110,9 +110,24 @@ def loadExpectations (path : System.FilePath) : IO (Except String Expectations) 
   unless ← path.pathExists do return .ok {}
   return parseExpectations (← IO.FS.readFile path) |>.mapError (s!"{path}: " ++ ·)
 
-/-- Persists expectations as pretty-printed JSON. -/
+/-- Renders JSON for files that people read and diff: object keys sorted, one per line, and the
+    elements of arrays one per line in compact form. (`Json.pretty` reverses the order of keys.) -/
+partial def renderJson (json : Json) (indent : String := "") : String :=
+  let inner := indent ++ "  "
+  match json with
+  | .obj fields =>
+    if fields.isEmpty then "{}" else
+    let entries := fields.foldl (init := #[]) fun acc key value =>
+      acc.push s!"{inner}{(Json.str key).compress}: {renderJson value inner}"
+    "{\n" ++ ",\n".intercalate entries.toList ++ s!"\n{indent}}"
+  | .arr items =>
+    if items.isEmpty then "[]" else
+    "[\n" ++ ",\n".intercalate (items.toList.map (inner ++ ·.compress)) ++ s!"\n{indent}]"
+  | json => json.compress
+
+/-- Persists expectations as JSON (see `renderJson`). -/
 def saveExpectations (path : System.FilePath) (e : Expectations) : IO Unit :=
-  IO.FS.writeFile path ((toJson e).pretty ++ "\n")
+  IO.FS.writeFile path (renderJson (toJson e) ++ "\n")
 
 private initialize expectationsCache : FileCache (Except String Expectations) ← IO.mkRef {}
 

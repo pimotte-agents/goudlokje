@@ -125,6 +125,29 @@ lean_lib Worksheets where
   leanOptions := #[⟨`weak.goudlokje.probes, "decide;; tauto;; norm_num"⟩]
 ```
 
+*Status: done.* Deviations and results:
+
+- **Module lookup through `lake query --no-build <file>:olean`.** Lake's library API
+  (`loadWorkspace`, `findModuleBySrc?`) crashes the interpreter when run in-process, and linking
+  Lake into the executable is fragile. A batch query answers the common case (everything up to
+  date) in one call. Otherwise each file is queried on its own, in parallel: only up-to-date
+  modules can be stale with respect to `.test.json`, and outdated or failing ones are rebuilt
+  anyway.
+- **Results are written to `$GOUDLOKJE_RESULTS_DIR/<module>.jsonl` only.** The
+  `goudlokje.resultsFile` option was removed, so there is a single mechanism. Every record
+  carries its source `file`. Exercise records list the checks that ran, so without probes no
+  expected shortcut is considered stale. Commands with errors produce `skipped` records.
+- **`update` logic is a pure function**, `Cli/Changes.lean`: `proposeChanges : Expectations →
+  ModuleResults → Array Change`, with unit tests in `Tests/Changes.lean`.
+- **`.test.json` is written with sorted keys, one entry per line** (`renderJson`), because
+  `Json.pretty` reverses key order in Lean 4.31.
+- **End-to-end test** `e2e/run.sh` (about 12 s) on the `E2EWorksheets` library, a real Waterproof
+  `#doc` worksheet copied into `e2e/work`. It covers failing `check`, `update --all`, passing
+  `check` after `.test.json` changed, stale detection after a change to `.test.json` only, and
+  removal of stale entries and deleted exercises.
+- **Known limitation:** deleting a `.test.json` is not detected by `check` (there is no newer file
+  to compare with the `.olean`); rebuild the worksheet, or run `update`.
+
 ### 4.1 Worksheet discovery
 
 - From file and directory arguments (default: the current directory), find the `.lean` files.

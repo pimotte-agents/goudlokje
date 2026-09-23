@@ -11,8 +11,10 @@ the exercise context (`getExercise?`) is computed once and shared by the checks.
 
 Issues that the worksheet's `.test.json` lists as expected are not reported; issues it does not
 list are reported with the check's severity (`Check.severity`); expectations that no longer match
-an issue are reported as stale. When `goudlokje.resultsFile` is set, every issue, expected or not,
-is also written to the results file for `goudlokje update`.
+an issue are reported as stale. When results are requested (see `resultsFile?`), every checked
+exercise and every issue, expected or not, is also written to the results file for
+`goudlokje update`. Commands with elaboration errors are not checked; for declarations among them a
+`skipped` record is written, so that `update` keeps their expectations.
 -/
 
 namespace Goudlokje
@@ -78,10 +80,10 @@ private def reportStale (e : Exercise) (check : Check) (issues : Array Issue) :
 
 /-- Reports the `issues` each check found in `e`; see the module documentation. -/
 private def report (e : Exercise) (results : Array (Check × Array Issue)) : CommandElabM Unit := do
-  let resultsFile := goudlokje.resultsFile.get (← getOptions)
+  let resultsFile? ← resultsFile?
   let record (r : ResultRecord) : CommandElabM Unit := do
-    unless resultsFile.isEmpty do emitRecord resultsFile r
-  record (.exercise e.name)
+    if let some path := resultsFile? then emitRecord path (← getFileName) r
+  record (.exercise e.name (results.map (·.1.name)))
   for (check, issues) in results do
     for issue in issues do
       let expected := isExpected e issue
@@ -100,6 +102,11 @@ def goudlokjeLinter : Linter where
     let linterOptions ← Linter.getLinterOptions
     let enabled := Check.all.filter (Linter.getLinterValue ·.linterOption linterOptions)
     if enabled.isEmpty then return
+    if (← get).messages.hasErrors then
+      if let some path ← resultsFile? then
+        if isVerboseKind (← getEnv) stx.getKind || stx.isOfKind ``Parser.Command.declaration then
+          emitRecord path (← getFileName) (.skipped (exerciseName (← getEnv) stx))
+      return
     let some e ← getExercise? stx | return
     let mut results := #[]
     for check in enabled do

@@ -45,12 +45,11 @@ def inputSteps (e : Exercise) : Array Step :=
 
 end Exercise
 
-/-- The exercise declared by the command `stx`, if Goudlokje checks it: the command elaborated
-    without errors, it is written with Lean Verbose (a Verbose command, or a proof using Verbose
-    tactics), and some of its steps lie in a student input area. An unreadable `.test.json` is
-    reported as an error. -/
+/-- The exercise declared by the command `stx`, if Goudlokje checks it: it is written with Lean
+    Verbose (a Verbose command, or a proof using Verbose tactics), and some of its steps lie in a
+    student input area. An unreadable `.test.json` is reported as an error. The caller checks that
+    the command elaborated without errors. -/
 def getExercise? (stx : Syntax) : CommandElabM (Option Exercise) := do
-  if (← get).messages.hasErrors then return none
   let steps := collectSteps stx (← getInfoTrees)
   let some first := steps[0]? | return none
   let env ← getEnv

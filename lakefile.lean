@@ -40,3 +40,12 @@ require "verbose-lean4"
 @[test_driver]
 lean_lib "Tests" where
   globs := #[.submodules `Tests]
+
+/-- Worksheets for the end-to-end test `e2e/run.sh`, which copies them to `e2e/work`. -/
+lean_lib E2EWorksheets where
+  srcDir := "e2e/work"
+  globs := #[.submodules `Worksheets]
+  leanOptions := #[
+    ⟨`weak.goudlokje.probes, "decide;; norm_num"⟩,
+    ⟨`weak.goudlokje.allowedTactics, "show;; norm_num"⟩
+  ]

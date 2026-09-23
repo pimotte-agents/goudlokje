@@ -27,3 +27,21 @@ private def sample : Expectations := {
 -- Empty fields are omitted when writing.
 #guard (toJson ({ exercises := ({} : Std.TreeMap _ _ compare).insert "a" {} } : Expectations)).compress ==
   "{\"exercises\":{\"a\":{}},\"testJsonVersion\":2}"
+
+-- Files are written with sorted keys, one per line.
+#guard renderJson (toJson sample) == "{
+  \"exercises\": {
+    \"1.1.13\": {
+      \"allowSorry\": true,
+      \"shortcuts\": [
+        {\"step\":1,\"tactic\":\"decide\"}
+      ]
+    },
+    \"b\": {
+      \"lint\": [
+        {\"check\":\"typeAscription\",\"step\":3}
+      ]
+    }
+  },
+  \"testJsonVersion\": 2
+}"
