@@ -5,7 +5,7 @@ package "goudlokje" where
   version := v!"0.1.0"
 
 lean_lib "Goudlokje" where
-  roots := #[`Goudlokje]
+  globs := #[.andSubmodules `Goudlokje]
 
 @[default_target]
 lean_exe "goudlokje" where
@@ -34,3 +34,9 @@ require "waterproof-genre"
       from git "https://github.com/impermeable/waterproof-genre" @ "feature/smaller-genre"
 require "verbose-lean4"
       from git "https://github.com/PatrickMassot/verbose-lean4" @ "v4.31.0"
+
+/-- Tests of the linters, run with `lake test`: every module is a test file whose checks
+    (`#guard_msgs`, `#guard`) fail the build when they fail. -/
+@[test_driver]
+lean_lib "Tests" where
+  globs := #[.submodules `Tests]
