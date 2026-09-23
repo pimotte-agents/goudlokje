@@ -11,6 +11,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+      # Builds the package and runs `lake test` (the `Tests` library).
       - uses: leanprover/lean-action@v1
-        with:
-          test-entry: goudlokje_tests
+      - name: End-to-end tests
+        run: e2e/run.sh

@@ -202,6 +202,29 @@ lean_lib Worksheets where
 
 ## Phase 5: clean-up, documentation, benchmark
 
+*Status: done.* Results:
+
+- **Old implementation removed:** the frontend, the workers, the old CLI and `TestSuite`,
+  `FixtureDeps`, `DebugAnalysis` and `.goudlokje.json`. `Goudlokje.lean` imports the linters.
+- **Fixtures** moved to `e2e/fixtures`, and the three broken ones repaired. `e2e/run.sh` compares
+  *all* findings with golden files: `.test.json` per fixture from `update --all`, plus
+  `expected/errors.txt` for the raw-tactic errors, which cannot be recorded. Regenerate them with
+  `e2e/run.sh --regenerate`.
+- **README rewritten; CI** runs lean-action (build and `lake test`) plus `e2e/run.sh`.
+  `.agent/validation.sh` runs the same.
+- **Benchmark** on the 19 fixtures, all six probes, 16 cores:
+
+  | Run                                   | Before (B0) | After  |
+  |---------------------------------------|-------------|--------|
+  | cold (nothing built)                  | 30.1 s      | 5.4 s  |
+  | warm, fixtures (they contain B1 errors, which Lake never caches) | 30.1 s | 4.3 s |
+  | warm, a passing worksheet (Lake start-up only) | n/a  | 1.2 s  |
+
+  The whole validation (`lake build`, `lake test`, `e2e/run.sh`) takes 26 s after removing
+  `.lake/build`.
+- **Open:** the header comments of some fixtures still describe the old filter pipeline (e.g.
+  "suppressed by filter"); the golden files are the specification now.
+
 - **Delete the old implementation:** `Analysis`, `Lint`, `ProbeWorker`, `Check`, the old `Update`,
   `Shortcuts`, `TestFile`, `Config`, `DebugAnalysis`, the `debug_analysis` and `goudlokje_tests`
   executables, `.goudlokje.json`, and the `TestSuite/` tree (after porting whatever it covers

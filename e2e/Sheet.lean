@@ -1,4 +1,4 @@
-import Goudlokje.Linter
+import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
 open Verbose English

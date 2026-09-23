@@ -4,30 +4,13 @@ open Lake DSL
 package "goudlokje" where
   version := v!"0.1.0"
 
+@[default_target]
 lean_lib "Goudlokje" where
   globs := #[.andSubmodules `Goudlokje]
 
 @[default_target]
 lean_exe "goudlokje" where
   root := `Main
-  moreLinkArgs := #["-rdynamic"]
-
-lean_lib "TestSuite" where
-  roots := #[`TestSuite]
-
--- FixtureDeps imports Verbose and Waterproof packages so their oleans are compiled.
--- This ensures `analyzeFile` can import them at runtime when processing fixture files.
-@[default_target]
-lean_lib "FixtureDeps" where
-  roots := #[`FixtureDeps]
-
-lean_exe "goudlokje_tests" where
-  root := `TestSuite.Main
-  moreLinkArgs := #["-rdynamic"]
-
-lean_exe "debug_analysis" where
-  root := `DebugAnalysis
-  moreLinkArgs := #["-rdynamic"]
 
 require "leanprover" / "lean4-cli" @ git "v4.31.0"
 require "waterproof-genre"
@@ -41,7 +24,10 @@ require "verbose-lean4"
 lean_lib "Tests" where
   globs := #[.submodules `Tests]
 
-/-- Worksheets for the end-to-end test `e2e/run.sh`, which copies them to `e2e/work`. -/
+/-! The end-to-end test `e2e/run.sh` copies worksheets to `e2e/work` and checks them as the
+    following libraries. -/
+
+/-- The worksheet used to test the `check` and `update` commands. -/
 lean_lib E2EWorksheets where
   srcDir := "e2e/work"
   globs := #[.submodules `Worksheets]
@@ -49,3 +35,9 @@ lean_lib E2EWorksheets where
     ⟨`weak.goudlokje.probes, "decide;; norm_num"⟩,
     ⟨`weak.goudlokje.allowedTactics, "show;; norm_num"⟩
   ]
+
+/-- Regression fixtures, checked with the probes the project used before the linter refactor. -/
+lean_lib E2EFixtures where
+  srcDir := "e2e/work"
+  globs := #[.submodules `Fixtures]
+  leanOptions := #[⟨`weak.goudlokje.probes, "decide;; tauto;; omega;; norm_num;; simp;; ring"⟩]
