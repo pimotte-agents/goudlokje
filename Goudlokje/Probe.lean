@@ -1,5 +1,6 @@
 import Mathlib.Lean.ContextInfo
 import Goudlokje.Steps
+import Goudlokje.Options
 
 /-!
 # Probes
@@ -20,11 +21,9 @@ structure Probe where
 
 /-- Parses the `;;`-separated probe tactics of `goudlokje.probes`. -/
 def parseProbes (env : Environment) (probes : String) : Except String (Array Probe) :=
-  (probes.splitOn ";;").toArray.filterMapM fun probe => do
-    let name := probe.trimAscii.toString
-    if name.isEmpty then return none
+  (splitListOption probes).mapM fun name =>
     match Parser.runParserCategory env `tactic name with
-    | .ok code => return some { name, code }
+    | .ok code => return { name, code }
     | .error e => throw s!"cannot parse probe tactic `{name}`: {e}"
 
 /-- The result of running a probe on a goal. -/

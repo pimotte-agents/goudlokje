@@ -25,6 +25,28 @@ register_option linter.goudlokje.shortcut : Bool := {
     before the end of the proof"
 }
 
+register_option linter.goudlokje.rawTactic : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report raw Lean tactics in Verbose proofs, except those allowed by \
+    `goudlokje.allowedTactics` (B1)"
+}
+
+register_option linter.goudlokje.typeAscription : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report type annotations in proof steps: `(e : T)` and `Fix x : T` (B2)"
+}
+
+register_option linter.goudlokje.sorry : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report `sorry` in exercises that do not allow it (B3)"
+}
+
+register_option goudlokje.allowedTactics : String := {
+  defValue := ""
+  descr := "(Goudlokje) raw Lean tactics allowed in Verbose proofs, as `;;`-separated leading \
+    tokens, e.g. \"norm_num;; rfl\""
+}
+
 register_option goudlokje.probes : String := {
   defValue := ""
   descr := "(Goudlokje) the probe tactics, separated by `;;`, e.g. \"decide;; simp;; norm_num\""
@@ -41,5 +63,12 @@ register_option goudlokje.resultsFile : String := {
   descr := "(Goudlokje) if set, all findings are appended to this file as JSON lines; \
     used by `goudlokje update`"
 }
+
+/-- Splits a `;;`-separated list option (such as `goudlokje.probes`) into its trimmed, non-empty
+    items. -/
+def splitListOption (value : String) : Array String :=
+  (value.splitOn ";;").toArray.filterMap fun item =>
+    let item := item.trimAscii.toString
+    if item.isEmpty then none else some item
 
 end Goudlokje

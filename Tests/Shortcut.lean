@@ -1,4 +1,4 @@
-import Goudlokje.Linter.Shortcut
+import Goudlokje.Linter
 import Verbose.English.All
 
 /-! Tests for the shortcut linter. Expected shortcuts are listed in `Shortcut.test.json`. -/
@@ -6,6 +6,8 @@ import Verbose.English.All
 set_option linter.unusedTactic false
 set_option linter.unusedVariables false
 set_option goudlokje.probes "decide"
+-- This file tests shortcuts only.
+set_option linter.goudlokje.rawTactic false
 
 /-- A tactic that never terminates on its own, to test the probe budget. -/
 elab "burn" : tactic => do
