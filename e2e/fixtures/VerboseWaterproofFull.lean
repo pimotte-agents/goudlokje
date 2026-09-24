@@ -1,3 +1,8 @@
+-- A worksheet with many Verbose tactics. Only exercise 1.1.13 has an input area (around its proof
+-- body), so only it is checked; the other exercises are outside input areas and not checked at all.
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/VerboseWaterproofFull.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import WaterproofGenre
 import Verbose.English.All

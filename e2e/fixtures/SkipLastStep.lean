@@ -1,10 +1,12 @@
--- Fixture for testing that shortcuts at the last tactic position are not reported.
--- Uses a Verbose 2-step proof so that after step filtering the tactic positions
--- are exactly 2 (one representative per step), making the skip-last rule observable.
--- `decide` can close the goal at both positions, but the last (step 2) must be skipped.
--- Before fix: 2 shortcuts (one per step). After fix: 1 shortcut (step 2 is last → skip).
--- This reproduces the mwe/WaterproofExercisesLean exercise 1.1.13 issue:
--- a probe tactic that works at the final step does not save any proof lines.
+-- Steps that close their own goal are never probed: a shortcut there saves no proof lines. In
+-- particular the last step of a proof is never a shortcut.
+--
+-- Here both `norm_num` steps close their goal, so only the Verbose steps are probed: step 1 (`Let's
+-- first prove that`, whose goal is the whole conjunction; every probe but `ring` closes it) and step
+-- 3 (`Let's now prove that`, whose goal Verbose blocks until then; only `tauto` sees through that).
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/SkipLastStep.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
@@ -17,21 +19,13 @@ set_option linter.unusedTactic false
 ::::multilean
 :::input
 ```lean
--- Fixture for testing that shortcuts at the last tactic position are not reported.
--- Uses a Verbose 2-step proof so that after step filtering the tactic positions
--- are exactly 2 (one representative per step), making the skip-last rule observable.
--- `decide` can close the goal at both positions, but the last (step 2) must be skipped.
--- Before fix: 2 shortcuts (one per step). After fix: 1 shortcut (step 2 is last → skip).
--- This reproduces the mwe/WaterproofExercisesLean exercise 1.1.13 issue:
--- a probe tactic that works at the final step does not save any proof lines.
-
 set_option linter.unusedTactic false
 
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   Let's first prove that 1 + 1 = 2
-  norm_num   -- step 1: goal is 1+1=2; decide closes it (shortcut, not last after filter)
+  norm_num   -- closes its goal: not probed
   Let's now prove that 2 + 2 = 4
-  norm_num   -- step 2: goal is 2+2=4; decide closes it (last after filter → skip)
+  norm_num   -- closes its goal (the last step): not probed
 ```
 :::
 ::::

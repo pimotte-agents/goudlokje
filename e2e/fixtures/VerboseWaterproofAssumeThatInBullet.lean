@@ -1,8 +1,12 @@
--- Regression test fixture: `Assume for contradiction` inside a focused proof bullet.
--- Minimal reproduction of the bug in sheet1_subset.lean exercise 2.1.10.
--- Verifies that focused bullets containing Verbose step boundaries
--- (`Assume for contradiction`) do not produce false-positive shortcuts
--- always enabled (step filtering is now the default and only mode).
+-- Verbose steps inside focusing bullets (`·`): the bullets are not steps, the tactics inside them
+-- are.
+--
+-- Step 1 (`Let's first prove that p`) works on the whole conjunction and step 3 (`Let's now prove
+-- that q`) on the blocked second part; `tauto` closes both. `Assume for contradiction that ¬ q`
+-- (step 4) is in the same chain as step 3, so it is not reported separately.
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/VerboseWaterproofAssumeThatInBullet.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import WaterproofGenre
 import Verbose.English.All

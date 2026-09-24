@@ -1,20 +1,12 @@
--- Fixture for testing that the Lean Verbose `Exercise`/`Example` command's proof
--- wrapper is NOT probed by Goudlokje.
+-- A Verbose `Exercise` expands to `example … := by with(out)_suggestions <proof>; done`, where the
+-- wrapper tactic sits at the `Proof:` token and has the whole conclusion as its goal. Steps are
+-- taken from the proof as written, so the wrapper is never a step and never probed.
 --
--- The `mkExercise` elaboration expands to:
---   example <objs ++ hyps>... : <concl> :=
---     by with(out)_suggestions%$tkp <proof>; done
--- where `tkp` is the `Proof:` token.  This gives the `with(out)_suggestions`
--- wrapper tactic a source position pointing at `Proof:`, and goalsBefore equal
--- to the exercise conclusion — so a probe tactic that closes the goal would
--- fire here as a false positive.
+-- Step 1 (`show`) leaves a goal and is probed: every probe closes it. Step 2 (`norm_num`) closes its
+-- goal and is not probed.
 --
--- The proof below has NO Verbose step boundaries (no `Let's first prove that …`),
--- the wrapper is NOT suppressed (no step boundaries present).
---
--- Expected result with `decide` probe:
---   - Without fix: 2 shortcuts (wrapper@Proof: + show@step1; norm_num is last → skip)
---   - With fix:    1 shortcut  (show@step1 only)
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/VerboseExercise.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
@@ -28,24 +20,6 @@ set_option linter.unusedTactic false
 ::::multilean
 :::input
 ```lean
--- Fixture for testing that the Lean Verbose `Exercise`/`Example` command's proof
--- wrapper is NOT probed by Goudlokje.
---
--- The `mkExercise` elaboration expands to:
---   example <objs ++ hyps>... : <concl> :=
---     by with(out)_suggestions%$tkp <proof>; done
--- where `tkp` is the `Proof:` token.  This gives the `with(out)_suggestions`
--- wrapper tactic a source position pointing at `Proof:`, and goalsBefore equal
--- to the exercise conclusion — so a probe tactic that closes the goal would
--- fire here as a false positive.
---
--- The proof below has NO Verbose step boundaries (no `Let's first prove that …`),
--- the wrapper is NOT suppressed (no step boundaries present).
---
--- Expected result with `decide` probe:
---   - Without fix: 2 shortcuts (wrapper@Proof: + show@step1; norm_num is last → skip)
---   - With fix:    1 shortcut  (show@step1 only)
-
 set_option linter.unusedTactic false
 
 Exercise "test exercise without step boundaries"
@@ -53,8 +27,8 @@ Exercise "test exercise without step boundaries"
   Assume: (h : 0 = 0)
   Conclusion: 1 + 1 = 2
 Proof:
-  show 1 + 1 = 2   -- noop; `decide` can close the goal here (not the last step → shortcut)
-  norm_num          -- closes the goal; `decide` works here too but it is last → skip
+  show 1 + 1 = 2   -- leaves a goal: probed, a shortcut
+  norm_num          -- closes the goal: not probed
 QED
 ```
 :::

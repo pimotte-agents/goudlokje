@@ -1,5 +1,7 @@
--- Fixture file for Goudlokje Verbose Lean integration tests.
--- Uses Verbose English tactics where `decide` can shortcut intermediate steps.
+-- Verbose proofs inside a Waterproof input area.
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/Verbose.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
@@ -12,22 +14,18 @@ set_option linter.unusedTactic false
 ::::multilean
 :::input
 ```lean
--- Fixture file for Goudlokje Verbose Lean integration tests.
--- Uses Verbose English tactics where `decide` can shortcut intermediate steps.
-
 set_option linter.unusedTactic false
 
--- A two-part conjunction proved with Verbose tactics.
--- After "Let's first prove that 1 + 1 = 2", the goal is `1 + 1 = 2`, which
--- `decide` can close directly (shortcut at the `norm_num` step).
+-- Shortcuts at step 1 (the whole conjunction) and, for `tauto`, at step 3. The `norm_num`
+-- steps close their goals, so they are not probed.
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   Let's first prove that 1 + 1 = 2
   norm_num
   Let's now prove that 2 + 2 = 4
   norm_num
 
--- A simple existential proof using Verbose witness tactic.
--- Goal at `rfl` is `4 = 2 * 2`; `decide` can close it.
+-- No shortcut: `Let's prove that 2 works` leaves `4 = 2 * 2`, which `rfl` closes as the
+-- last step, and no probe proves the existential at step 1.
 example : ∃ k : ℕ, 4 = 2 * k := by
   Let's prove that 2 works
   rfl

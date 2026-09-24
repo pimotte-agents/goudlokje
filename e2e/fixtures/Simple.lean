@@ -1,5 +1,5 @@
--- Fixture file for Goudlokje integration tests.
--- This file contains proofs that are intentionally shortcuttable by `decide`.
+-- Proofs without Lean Verbose are not checked, even in an input area: `decide` could shortcut these
+-- proofs, but nothing is reported. No .test.json, no errors.
 import Goudlokje
 import WaterproofGenre
 open WaterproofGenre
@@ -9,15 +9,13 @@ open WaterproofGenre
 ::::multilean
 :::input
 ```lean
--- Fixture file for Goudlokje integration tests.
--- This file contains proofs that are intentionally shortcuttable by `decide`.
 -- It imports nothing beyond the core Lean 4 prelude.
 
-/-- A trivially decidable proposition. `decide` can close this goal immediately. -/
+/-- A one-step proof: never a shortcut, and not a Verbose proof anyway. -/
 theorem onePlusOneEqTwo : 1 + 1 = 2 := by
   rfl
 
-/-- A two-step proof where `decide` can shortcut both sub-goals. -/
+/-- `decide` could close the goal at `constructor`, but this is not a Verbose proof. -/
 theorem twoStepAnd : True ∧ True := by
   constructor
   · trivial

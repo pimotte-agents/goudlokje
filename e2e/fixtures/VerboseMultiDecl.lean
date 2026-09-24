@@ -1,5 +1,8 @@
--- Fixture for testing that step filtering resets per declaration.
--- Declaration 1 uses Verbose step boundaries; Declaration 2 does not.
+-- Several exercises in one code block are checked independently, each with its own step numbers and
+-- goal chains. The anonymous `example` is named after its statement.
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/VerboseMultiDecl.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
@@ -8,18 +11,15 @@ open WaterproofGenre
 
 set_option linter.unusedTactic false
 
-#doc (WaterproofGenre) "Multi-declaration filter fixture" =>
+#doc (WaterproofGenre) "Several exercises in one block" =>
 
 ::::multilean
 :::input
 ```lean
--- Fixture for testing that step filtering resets per declaration.
--- Declaration 1 uses Verbose step boundaries; Declaration 2 does not.
-
 set_option linter.unusedTactic false
 
--- Decl 1: two Verbose steps, each with a noop `show` before `norm_num`.
--- The filter keeps only `show` per step; skip-last removes step 2 → 1 decide shortcut.
+-- Chains: step 1 (whole conjunction); step 2 (`show`, first part); steps 4-5 (second part;
+-- Verbose blocks its goal at step 4, so only `tauto` fires there and step 5 is not reported).
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   Let's first prove that 1 + 1 = 2
   show 1 + 1 = 2
@@ -28,15 +28,14 @@ example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   show 2 + 2 = 4
   norm_num
 
--- Decl 2: Verbose Exercise without step boundaries; filter must not suppress it.
--- Has two tactic positions: `show` (not last → shortcut), `norm_num` (last → skipped).
+-- Step 1 (`show`) is a shortcut; step 2 closes the goal and is not probed.
 Exercise "multi-decl test without step boundaries"
   Given: (dummy : Nat)
   Assume:
   Conclusion: 1 + 1 = 2
 Proof:
-  show 1 + 1 = 2   -- noop; `decide` can close the goal here (not the last step → shortcut)
-  norm_num          -- closes the goal; last → skip
+  show 1 + 1 = 2   -- leaves a goal: probed, a shortcut
+  norm_num          -- closes the goal: not probed
 QED
 ```
 :::

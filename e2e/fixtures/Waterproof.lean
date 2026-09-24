@@ -1,6 +1,5 @@
--- Fixture file for Goudlokje Waterproof Genre integration tests.
--- Uses the Waterproof Genre `#doc` format; Lean code blocks inside have
--- standard proofs where `decide` can shortcut intermediate steps.
+-- Proofs without Lean Verbose, in Waterproof code blocks without an input area: not checked. No
+-- .test.json, no errors.
 import Goudlokje
 import WaterproofGenre
 import Mathlib.Tactic.NormNum
@@ -9,13 +8,13 @@ open WaterproofGenre
 #doc (WaterproofGenre) "Test Exercise" =>
 
 ```lean
--- Goal at `norm_num` is `1 + 1 = 2`; `decide` can close it directly.
+-- Not checked (no Verbose, no input area).
 example : 1 + 1 = 2 := by
   norm_num
 ```
 
 ```lean
--- Goal at each `norm_num` step can be closed by `decide`.
+-- Not checked (no Verbose, no input area).
 example : 2 + 2 = 4 ∧ 3 + 3 = 6 := by
   constructor
   · norm_num

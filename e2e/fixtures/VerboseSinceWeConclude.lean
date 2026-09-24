@@ -1,8 +1,11 @@
--- Regression test fixture for internal elaboration artifact bug (sheet1_subset.lean #2).
--- Verbose `Since...we get that` steps are NOT opaque and NOT step boundaries.
--- They elaborate into internal child nodes (Lean.Parser.Tactic.*) at the same position.
--- Without `isUserFacingVerboseTactic` filter, these children would be collected as
--- probe positions, potentially producing false-positive shortcuts.
+-- `Since … we get that` and `Since … we conclude that` elaborate to several internal tactics at the
+-- same position. Only the tactics as written are steps: step 1 (`Since … we get that`) leaves a goal
+-- and is probed (only `tauto` closes it); step 2 closes the goal.
+--
+-- Same exercise as VerboseWaterproofSince.lean.
+--
+-- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
+-- expected/VerboseSinceWeConclude.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import WaterproofGenre
 import Verbose.English.All

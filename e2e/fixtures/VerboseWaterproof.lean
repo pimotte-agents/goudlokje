@@ -1,6 +1,5 @@
--- Fixture for Goudlokje integration tests: Lean Verbose proofs inside WaterproofGenre #doc blocks.
--- This combines both packages: WaterproofGenre for document structure, Verbose.English.All for proofs.
--- After each Verbose step boundary, the sub-goal should be closeable by `decide`.
+-- A Verbose proof in a Waterproof code block without an input area (`:::input`): nothing outside
+-- input areas is checked, so nothing is reported. No .test.json, no errors.
 import Goudlokje
 import WaterproofGenre
 import Verbose.English.All
@@ -10,7 +9,7 @@ open WaterproofGenre
 
 ```lean
 set_option linter.unusedTactic false
--- Goal at `norm_num` (inside first Verbose step) is `1 + 1 = 2`; `decide` can close it.
+-- Not in an input area: not checked.
 example : 1 + 1 = 2 ∧ 2 + 2 = 4 := by
   Let's first prove that 1 + 1 = 2
   norm_num
