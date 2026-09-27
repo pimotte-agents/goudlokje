@@ -25,12 +25,17 @@ recorded per worksheet in a `.test.json` file and are then no longer reported.
 ## Setting up a worksheet project
 
 Goudlokje requires the Lean toolchain in `lean-toolchain`; your project must use the same one.
+Goudlokje itself depends only on Lean (and `Cli` for its command); the worksheet project brings
+Lean Verbose, the Waterproof genre and Mathlib, in the versions it chooses.
 
 1. Add Goudlokje as a dependency in `lakefile.lean`:
 
    ```lean
    require "goudlokje" from git "https://github.com/pimotte/goudlokje" @ "main"
    ```
+
+   Also add `/.lake` to `.gitignore` if it is not there yet: Goudlokje keeps its results in
+   `.lake/goudlokje` (see below).
 
 2. Make the worksheets modules of a library and configure the checks through its options. The
    `weak.` prefix keeps modules that do not import Goudlokje from rejecting the options.
@@ -43,7 +48,8 @@ Goudlokje requires the Lean toolchain in `lean-toolchain`; your project must use
      ]
    ```
 
-3. Import Goudlokje in every worksheet (or in a module that all worksheets import):
+3. Import Goudlokje in every worksheet, or better, in one module that all worksheets import
+   (a "sheet header" with the imports every worksheet needs):
 
    ```lean
    import Goudlokje
@@ -60,6 +66,7 @@ Then `lake build` checks the worksheets, and the editor shows the findings.
 | `goudlokje.probes`                       | `""`    | Probe tactics, separated by `;;`. Without probes, the `shortcut` check does not run.         |
 | `goudlokje.probeHeartbeats`              | `100`   | Heartbeat budget per probe, in thousands (like `maxHeartbeats`). A probe that runs out is not a shortcut. |
 | `goudlokje.allowedTactics`               | `""`    | Raw Lean tactics allowed in Verbose proofs, as leading tokens separated by `;;`, e.g. `"norm_num;; rfl"`. |
+| `goudlokje.verboseModules`               | `"Verbose"` | The modules whose tactics count as Lean Verbose tactics, as module name prefixes separated by `;;`. Add the modules of your own Verbose-style tactics, e.g. `"Verbose;; MyProject.Tactics"`; keep `Verbose` in the list. |
 | `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry` | `true` | Turn a check on or off.                 |
 | `linter.goudlokje.explain`               | `false` | Debugging aid: shows the steps Goudlokje finds in each command and how it groups them.       |
 
@@ -101,14 +108,16 @@ Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise w
       ]
     }
   },
-  "testJsonVersion": 2
+  "testJsonVersion": 3
 }
 ```
 
 - **Exercises** are identified by the title of a Verbose `Exercise`/`Example`, the name of a
   theorem, or the statement of an anonymous `example` (such as `"example : 1 + 1 = 2"`).
-- **Steps** are numbered by line relative to the first step of the exercise, so they stay valid
-  when other parts of the file change.
+- **Steps** are numbered by position among the steps of the exercise, starting at 1 (nested steps,
+  e.g. in a bullet, count too). So they stay valid when other parts of the file change, and when
+  blank lines or comments are added inside the exercise. `linter.goudlokje.explain` shows the
+  numbers.
 - **`allowSorry`** allows `sorry` in an exercise, e.g. in a true-or-false exercise whose statement
   is false.
 - **`rawTactic` findings cannot be recorded.** Allow a tactic for the whole project with
@@ -125,13 +134,20 @@ Run it in the worksheet project with `lake exe goudlokje`. Both commands take wo
 directories (default: the current directory).
 
 - **`goudlokje check [paths…]`** builds the worksheets and fails if something unexpected is found.
-  This is `lake build` plus one thing: Lake does not notice a changed `.test.json`, so `check`
-  rebuilds worksheets whose `.test.json` is newer than their build. (It does not notice a
-  *deleted* `.test.json`; rebuild the worksheet or run `update` after deleting one.)
-- **`goudlokje update [--all] [paths…]`** checks the worksheets again and updates their
-  `.test.json`. It records new findings as expected and removes stale expectations, including
-  those of exercises that no longer exist. It asks before each change; with `--all` it makes
-  them all. Exercises that do not elaborate keep their expectations.
+  This is `lake build` plus one thing: Lake does not notice a changed (or deleted) `.test.json`,
+  so for worksheets whose `.test.json` changed since they were built, `check` compares the
+  recorded results (see below) with the current `.test.json` instead of rebuilding them.
+- **`goudlokje update [--all] [paths…]`** builds the worksheets and updates their `.test.json`
+  from the recorded results. It records new findings as expected and removes stale expectations,
+  including those of exercises that no longer exist. It asks before each change; with `--all` it
+  makes them all. Exercises that do not elaborate keep their expectations.
+
+Neither command rebuilds worksheets that are up to date. Whenever a worksheet is checked on the
+command line (`lake build`, `lake lean`), Goudlokje records everything it found in
+`.lake/goudlokje/<module>.jsonl`, together with hashes of the source and of the `.test.json` it
+was checked against. If these results are missing for a worksheet with a `.test.json` (e.g. after
+deleting `.lake/goudlokje`), the commands recompute them with `lake lean`, which does not touch the
+build. The language server does not record results.
 
 ### CI
 
@@ -149,21 +165,26 @@ errors.
 
 ```bash
 lake build          # the linters and the goudlokje executable
-lake test           # unit tests of the linters (the Tests library, #guard_msgs / #guard)
-e2e/run.sh          # end-to-end tests of the commands, and a regression test of all findings
+lake test           # unit tests of the linters (runs `lake test` in the test package)
+test/e2e/run.sh     # end-to-end tests of the commands, and a regression test of all findings
 ```
 
-`e2e/run.sh` checks the fixtures in `e2e/fixtures` and compares everything found with
-`e2e/fixtures/expected`. After an intended change of behaviour, run `e2e/run.sh --regenerate`
-and review the diff.
+The tests are a separate Lake package in `test/` (library `GoudlokjeTests`), because they need
+Lean Verbose, the Waterproof genre and Mathlib, which Goudlokje itself does not depend on. Before
+the first run, get the Mathlib cache there: `cd test && lake exe cache get`.
+
+`test/e2e/run.sh` checks the fixtures in `test/e2e/fixtures` and compares everything found with
+`test/e2e/fixtures/expected`. After an intended change of behaviour, run
+`test/e2e/run.sh --regenerate` and review the diff.
 
 Code overview (`Goudlokje/`):
 
 | Module                      | Contents                                                                    |
 |-----------------------------|-----------------------------------------------------------------------------|
-| `Steps`, `Origin`           | proof steps from the syntax and info trees; Verbose or not, by the module that declares a tactic |
+| `Steps`, `Origin`           | proof steps from the syntax and info trees; Verbose or not, by the module that declares a tactic (`goudlokje.verboseModules`) |
 | `Scope`, `Exercise`         | input areas; the per-command context shared by the checks                   |
+| `Check`, `Finding`          | the checks and their properties; the issues they find                       |
 | `Probe`, `Checks/`          | running probes with a budget; the four checks                               |
-| `Linter`, `Report`          | the linter: expectations, stale entries, messages, results for `update`     |
-| `Expectations`              | the `.test.json` format                                                     |
-| `Cli/`                      | the `check` and `update` commands                                           |
+| `Linter`, `Report`          | the linter: messages, stale entries, the results files                      |
+| `Expectations`              | the `.test.json` format; which findings are expected, which entries stale    |
+| `Cli/`                      | the `check` and `update` commands; reading the results files                |

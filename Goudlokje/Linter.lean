@@ -11,8 +11,8 @@ the exercise context (`getExercise?`) is computed once and shared by the checks.
 
 Issues that the worksheet's `.test.json` lists as expected are not reported; issues it does not
 list are reported with the check's severity (`Check.severity`); expectations that no longer match
-an issue are reported as stale. When results are requested (see `resultsFile?`), every checked
-exercise and every issue, expected or not, is also written to the results file for
+an issue are reported as stale. On the command line, every checked exercise and every issue,
+expected or not, is also written to the results file (see `emitRecords`) for `goudlokje check` and
 `goudlokje update`. Commands with elaboration errors are not checked; for declarations among them a
 `skipped` record is written, so that `update` keeps their expectations.
 -/
@@ -37,12 +37,7 @@ private def dedup (issues : Array Issue) : Array Issue :=
 
 /-- Whether `.test.json` expects `issue` in `e`. -/
 private def isExpected (e : Exercise) (issue : Issue) : Bool :=
-  let step := e.stepNumber issue.step
-  match issue.check with
-  | .shortcut => e.expectations.shortcuts.contains { step, tactic := issue.tactic?.getD "" }
-  | .rawTactic => false
-  | .typeAscription => e.expectations.lint.contains { check := Check.typeAscription.name, step }
-  | .sorry => e.expectations.allowSorry
+  e.expectations.expects issue.check (e.stepNumber issue.step) issue.tactic?
 
 /-- How to record an issue as expected, appended to the message of an unexpected issue. -/
 private def hint : Check → MessageData
@@ -51,68 +46,65 @@ private def hint : Check → MessageData
   | .rawTactic =>
     m!"Tactics can be allowed for a whole project with the option `goudlokje.allowedTactics`."
 
-/-- Reports the expectations of `e` for `check` that no longer match any of its `issues`. -/
-private def reportStale (e : Exercise) (check : Check) (issues : Array Issue) :
+/-- Reports the expectations of `e` that no longer hold, given the `results` of the checks. -/
+private def reportStale (e : Exercise) (results : Array (Check × Array Issue)) :
     CommandElabM Unit := do
-  let stale (msg : MessageData) (severity := MessageSeverity.warning) :=
-    logFinding check.linterOption e.stx severity msg
+  let found := results.flatMap fun (check, issues) =>
+    issues.map fun i => (check, e.stepNumber i.step, i.tactic?)
   let exercise := repr e.name
-  match check with
-  | .shortcut =>
-    for entry in e.expectations.shortcuts do
-      unless issues.any fun i => e.stepNumber i.step == entry.step && i.tactic? == entry.tactic do
-        stale m!"expected shortcut `{entry.tactic}` at step {entry.step} of exercise {exercise} \
-          no longer occurs; remove it with `goudlokje update`"
-  | .rawTactic =>
-    for entry in e.expectations.lint do
-      if entry.check == check.name then
-        stale (severity := .error) m!"`{check.name}` at step {entry.step} of exercise {exercise} \
-          cannot be recorded as expected; remove it from `.test.json`"
-  | .typeAscription =>
-    for entry in e.expectations.lint do
-      if entry.check == check.name && !issues.any (e.stepNumber ·.step == entry.step) then
-        stale m!"expected `{check.name}` at step {entry.step} of exercise {exercise} no longer \
-          occurs; remove it with `goudlokje update`"
-  | .sorry =>
-    if e.expectations.allowSorry && issues.isEmpty then
-      stale m!"exercise {exercise} allows `sorry` but contains none; remove `allowSorry` with \
-        `goudlokje update`"
+  for entry in e.expectations.stale (results.map (·.1)) found do
+    let (check, severity, msg) : Check × MessageSeverity × MessageData := match entry with
+      | .shortcut s => (.shortcut, .warning, m!"expected shortcut `{s.tactic}` at step {s.step} \
+          of exercise {exercise} no longer occurs; remove it with `goudlokje update`")
+      | .lint l true => ((Check.ofName? l.check).getD .rawTactic, .error, m!"`{l.check}` at \
+          step {l.step} of exercise {exercise} cannot be recorded as expected; remove it with \
+          `goudlokje update`")
+      | .lint l false => ((Check.ofName? l.check).getD .typeAscription, .warning, m!"expected \
+          `{l.check}` at step {l.step} of exercise {exercise} no longer occurs; remove it with \
+          `goudlokje update`")
+      | .allowSorry => (.sorry, .warning, m!"exercise {exercise} allows `sorry` but contains \
+          none; remove `allowSorry` with `goudlokje update`")
+    logFinding check.linterOption e.stx severity msg
 
-/-- Reports the `issues` each check found in `e`; see the module documentation. -/
-private def report (e : Exercise) (results : Array (Check × Array Issue)) : CommandElabM Unit := do
-  let resultsFile? ← resultsFile?
-  let record (r : ResultRecord) : CommandElabM Unit := do
-    if let some path := resultsFile? then emitRecord path (← getFileName) r
-  record (.exercise e.name (results.map (·.1.name)))
+/-- Reports the `issues` each check found in `e`; returns the records for the results file. -/
+private def report (e : Exercise) (results : Array (Check × Array Issue)) :
+    CommandElabM (Array ResultRecord) := do
+  let mut records := #[.exercise e.name (results.map (·.1.name))]
   for (check, issues) in results do
     for issue in issues do
-      let expected := isExpected e issue
-      unless expected do
+      unless isExpected e issue do
         logFinding check.linterOption issue.ref check.severity m!"{issue.message}\n\n{hint check}"
       let pos := e.fileMap.toPosition (issue.ref.getPos?.getD 0)
-      record <| .finding {
-        check := check.name, exercise := e.name, step := e.stepNumber issue.step
+      records := records.push <| .finding {
+        check, exercise := e.name, step := e.stepNumber issue.step
         line := pos.line, column := pos.column, tactic? := issue.tactic?
-        message := ← issue.message.toString, expected }
-    reportStale e check issues
+        message := ← issue.message.toString }
+  reportStale e results
+  return records
+
+/-- The records for the results file of command `stx`, reporting what the checks find. -/
+private def checkCommand (stx : Syntax) : CommandElabM (Array ResultRecord) := do
+  let linterOptions ← Linter.getLinterOptions
+  let enabled := Check.all.filter (Linter.getLinterValue ·.linterOption linterOptions)
+  if enabled.isEmpty then return #[]
+  if (← get).messages.hasErrors then
+    let env ← getEnv
+    let verbose := verboseModules (← getOptions)
+    if isVerboseKind env verbose stx.getKind || stx.isOfKind ``Parser.Command.declaration then
+      return #[.skipped (exerciseName env verbose stx)]
+    return #[]
+  let some e ← getExercise? stx | return #[]
+  let mut results := #[]
+  for check in enabled do
+    if let some issues ← runCheck e check then
+      results := results.push (check, dedup issues)
+  report e results
 
 /-- The Goudlokje linter; see the module documentation. -/
 def goudlokjeLinter : Linter where
   run := withSetOptionIn fun stx => do
-    let linterOptions ← Linter.getLinterOptions
-    let enabled := Check.all.filter (Linter.getLinterValue ·.linterOption linterOptions)
-    if enabled.isEmpty then return
-    if (← get).messages.hasErrors then
-      if let some path ← resultsFile? then
-        if isVerboseKind (← getEnv) stx.getKind || stx.isOfKind ``Parser.Command.declaration then
-          emitRecord path (← getFileName) (.skipped (exerciseName (← getEnv) stx))
-      return
-    let some e ← getExercise? stx | return
-    let mut results := #[]
-    for check in enabled do
-      if let some issues ← runCheck e check then
-        results := results.push (check, dedup issues)
-    report e results
+    -- Every command emits, so that the results file is started even without exercises.
+    emitRecords (← checkCommand stx)
 
 initialize addLinter goudlokjeLinter
 

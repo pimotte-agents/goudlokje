@@ -47,6 +47,12 @@ register_option goudlokje.allowedTactics : String := {
     tokens, e.g. \"norm_num;; rfl\""
 }
 
+register_option goudlokje.verboseModules : String := {
+  defValue := "Verbose"
+  descr := "(Goudlokje) the modules whose tactics count as Lean Verbose tactics, as `;;`-separated \
+    module name prefixes, e.g. \"Verbose;; MyProject.Tactics\""
+}
+
 register_option goudlokje.probes : String := {
   defValue := ""
   descr := "(Goudlokje) the probe tactics, separated by `;;`, e.g. \"decide;; simp;; norm_num\""

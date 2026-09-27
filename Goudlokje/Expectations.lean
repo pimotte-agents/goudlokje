@@ -1,18 +1,19 @@
 import Lean.Data.Json
 import Lean.Elab.Command
 import Goudlokje.FileCache
+import Goudlokje.Check
 
 /-!
 # Expectations
 
 The `<worksheet>.test.json` companion file records what is *expected* in a worksheet: shortcuts
 that are acceptable and lint findings that are documented, per exercise. Steps are identified by
-their line relative to the first step of the exercise, so edits elsewhere in the file do not
-invalidate them.
+their position among the steps of the exercise (see `stepNumber`), so edits elsewhere in the file,
+and blank lines or comments inside the exercise, do not invalidate them.
 
 ```json
 {
-  "testJsonVersion": 2,
+  "testJsonVersion": 3,
   "exercises": {
     "1.1.13": {
       "shortcuts": [{ "step": 1, "tactic": "decide" }],
@@ -28,8 +29,9 @@ namespace Goudlokje
 
 open Lean
 
-/-- The current version of the `.test.json` format. -/
-def testJsonVersion : Nat := 2
+/-- The current version of the `.test.json` format. Version 3 numbers steps by position instead of
+    by line. -/
+def testJsonVersion : Nat := 3
 
 /-- A probe tactic that is expected to close the goal at a step. -/
 structure ExpectedShortcut where
@@ -51,6 +53,48 @@ structure ExerciseExpectations where
   allowSorry : Bool := false
   deriving Repr, BEq, Inhabited
 
+/-- Whether `e` expects an issue of `check` at `step` (for shortcuts: of probe `tactic?`). Raw
+    tactics cannot be expected (see `Check.suppressible`). -/
+def ExerciseExpectations.expects (e : ExerciseExpectations) (check : Check) (step : Nat)
+    (tactic? : Option String := none) : Bool :=
+  check.suppressible && match check with
+  | .shortcut => e.shortcuts.contains { step, tactic := tactic?.getD "" }
+  | .sorry => e.allowSorry
+  | _ => e.lint.contains { check := check.name, step }
+
+/-- An expectation of an exercise that does not hold (any more). -/
+inductive StaleEntry where
+  /-- An expected shortcut that no longer occurs. -/
+  | shortcut (entry : ExpectedShortcut)
+  /-- A documented lint finding that no longer occurs, or that is `invalid`: of a check whose
+      findings cannot be expected (see `Check.suppressible`), or of an unknown check. -/
+  | lint (entry : ExpectedLint) (invalid : Bool)
+  /-- `allowSorry` in an exercise without `sorry`. -/
+  | allowSorry
+  deriving Repr, BEq
+
+/-- The stale entries of `e`, given the checks that ran on the exercise and what they found, as
+    (check, step, probe tactic) triples. Entries of checks that did not run cannot be confirmed, so
+    they are not stale; invalid entries always are. -/
+def ExerciseExpectations.stale (e : ExerciseExpectations) (ran : Array Check)
+    (found : Array (Check × Nat × Option String)) : Array StaleEntry := Id.run do
+  let mut stale := #[]
+  if ran.contains .shortcut then
+    for entry in e.shortcuts do
+      unless found.contains (.shortcut, entry.step, some entry.tactic) do
+        stale := stale.push (.shortcut entry)
+  for entry in e.lint do
+    match Check.ofName? entry.check with
+    | some check =>
+      if !check.suppressible || check == .shortcut || check == .sorry then
+        stale := stale.push (.lint entry (invalid := true))
+      else if ran.contains check && !found.any fun (c, step, _) => c == check && step == entry.step then
+        stale := stale.push (.lint entry (invalid := false))
+    | none => stale := stale.push (.lint entry (invalid := true))
+  if ran.contains .sorry && e.allowSorry && !found.any (·.1 == .sorry) then
+    stale := stale.push .allowSorry
+  return stale
+
 /-- The contents of a `.test.json` file. -/
 structure Expectations where
   exercises : Std.TreeMap String ExerciseExpectations compare := {}
@@ -70,11 +114,17 @@ instance : FromJson ExerciseExpectations where
       allowSorry := ← optField json "allowSorry" false
     }
 
+/-- Entries are written sorted by step, so that the file does not depend on the order in which
+    they were recorded. -/
 instance : ToJson ExerciseExpectations where
-  toJson e := Json.mkObj <|
-    (if e.shortcuts.isEmpty then [] else [("shortcuts", toJson e.shortcuts)]) ++
-    (if e.lint.isEmpty then [] else [("lint", toJson e.lint)]) ++
-    (if e.allowSorry then [("allowSorry", toJson true)] else [])
+  toJson e :=
+    let shortcuts := e.shortcuts.qsort fun a b =>
+      a.step < b.step || a.step == b.step && a.tactic < b.tactic
+    let lint := e.lint.qsort fun a b => a.step < b.step || a.step == b.step && a.check < b.check
+    Json.mkObj <|
+      (if shortcuts.isEmpty then [] else [("shortcuts", toJson shortcuts)]) ++
+      (if lint.isEmpty then [] else [("lint", toJson lint)]) ++
+      (if e.allowSorry then [("allowSorry", toJson true)] else [])
 
 instance : FromJson Expectations where
   fromJson? json := do
@@ -105,10 +155,20 @@ def testJsonPath (worksheet : System.FilePath) : System.FilePath :=
 def parseExpectations (contents : String) : Except String Expectations := do
   fromJson? (← Json.parse contents)
 
+/-- The contents of the file at `path`, or `none` if it does not exist. -/
+def readFile? (path : System.FilePath) : IO (Option String) := do
+  unless ← path.pathExists do return none
+  return some (← IO.FS.readFile path)
+
 /-- Reads the `.test.json` file at `path`; a missing file means no expectations. -/
 def loadExpectations (path : System.FilePath) : IO (Except String Expectations) := do
-  unless ← path.pathExists do return .ok {}
-  return parseExpectations (← IO.FS.readFile path) |>.mapError (s!"{path}: " ++ ·)
+  let some contents ← readFile? path | return .ok {}
+  return parseExpectations contents |>.mapError (s!"{path}: " ++ ·)
+
+/-- A hash of the `.test.json` file at `path` (a missing file hashes like an empty one), to tell
+    whether it changed since a worksheet was checked. -/
+def expectationsHash (path : System.FilePath) : IO UInt64 :=
+  return hash ((← readFile? path).getD "")
 
 /-- Renders JSON for files that people read and diff: object keys sorted, one per line, and the
     elements of arrays one per line in compact form. (`Json.pretty` reverses the order of keys.) -/

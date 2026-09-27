@@ -5,19 +5,48 @@ import Goudlokje.Cli.Changes
 # `goudlokje check` and `goudlokje update`
 
 Both work on worksheets: modules of a library in the current Lake workspace that import
-`Goudlokje`. The checks themselves run as linters during `lake build`.
+`Goudlokje`. The checks themselves run as linters during `lake build`, which also writes their
+results to the results files (see `emitRecords`).
 
 * `check` builds the worksheets. Findings that `.test.json` does not expect are errors, so the
-  build fails. Worksheets whose `.test.json` changed since they were built are rebuilt, since Lake
-  does not track that file.
-* `update` rebuilds the worksheets with results requested (see `resultsDirVar`) and updates their
-  `.test.json` files: new findings are recorded as expected, stale expectations removed, after
-  confirmation or, with `--all`, directly.
+  build fails. Lake does not track `.test.json`, so for worksheets whose `.test.json` changed since
+  they were built, the recorded results are compared with the current `.test.json` instead.
+* `update` builds the worksheets and updates their `.test.json` files from the results: new
+  findings are recorded as expected, stale expectations removed, after confirmation or, with
+  `--all`, directly.
+
+Neither rebuilds up-to-date worksheets: results that are missing (for worksheets with a
+`.test.json`) are recomputed with `lake lean`, which leaves the build state alone.
 -/
 
 namespace Goudlokje.Cli
 
 open System
+
+/-- Prints the output of elaborations that failed. -/
+private def printFailed (failed : Array (FilePath × IO.Process.Output)) : IO Unit :=
+  for (_, out) in failed do IO.eprint (out.stdout ++ out.stderr)
+
+/-- Compares the results `r` of `worksheet` with its current `.test.json`, printing what is
+    unexpected or stale like the linter does; returns whether there are errors. -/
+private def recheck (worksheet : FilePath) (r : ModuleResults) : IO Bool := do
+  let expectations ← match ← loadExpectations (testJsonPath worksheet) with
+    | .ok e => pure e
+    | .error e => IO.eprintln s!"error: {e}"; return true
+  IO.println s!"{worksheet}: .test.json changed since the worksheet was built; comparing the \
+    recorded results with it"
+  let mut errors := false
+  for f in r.findings do
+    unless (expectations.get f.exercise).expects f.check f.step f.tactic? do
+      let severity := if f.check.severity == .error then "error" else "warning"
+      IO.eprintln s!"{severity}: {worksheet}:{f.line}:{f.column}: {f.message}"
+      errors := errors || f.check.severity == .error
+  for change in proposeChanges expectations r do
+    if change matches .recordShortcut .. | .recordLint .. | .allowSorry .. then continue
+    let severity := if change.automatic then "error" else "warning"
+    IO.eprintln s!"{severity}: {worksheet}: stale expectation: {change.describe}"
+    errors := errors || change.automatic
+  return errors
 
 /-- `goudlokje check`; returns the exit code. -/
 def check (paths : Array FilePath) : IO UInt32 := do
@@ -25,9 +54,16 @@ def check (paths : Array FilePath) : IO UInt32 := do
   if worksheets.isEmpty then
     IO.eprintln "No worksheets found."
     return 1
-  for w in worksheets do
-    if ← expectationsChanged w then invalidate w
-  return if ← build worksheets then 0 else 1
+  let built ← build worksheets
+  let (results, failed) ← getResults worksheets
+  printFailed failed
+  let mut errors := !failed.isEmpty
+  for w in worksheets, r? in results do
+    let some r := r? | continue
+    -- The build checked `w` against the `.test.json` of that time.
+    if r.expectations == (← expectationsHash (testJsonPath w)) then continue
+    errors := (← recheck w r) || errors
+  return if built && !errors then 0 else 1
 
 /-- Asks a yes/no question on the terminal; the default is no. -/
 private def confirm (question : String) : IO Bool := do
@@ -66,34 +102,24 @@ def update (paths : Array FilePath) (all : Bool) : IO UInt32 := do
   if worksheets.isEmpty then
     IO.eprintln "No worksheets found."
     return 1
-  IO.FS.withTempDir fun dir => do
-    worksheets.forM invalidate
-    IO.println s!"Checking {worksheets.size} worksheet(s)..."
-    -- Unexpected findings are errors, so the build is expected to fail; its output is only
-    -- shown for worksheets that could not be checked.
-    let out ← IO.Process.output {
-      cmd := "lake", args := #["build"] ++ worksheets.map (·.source.toString)
-      env := #[(resultsDirVar, some dir.toString)] }
-    let mut results : Std.HashMap FilePath ModuleResults := {}
-    for entry in ← dir.readDir do
-      match parseResultLines (← IO.FS.readFile entry.path) with
-      | .ok records =>
-        for (file, record) in records do
-          let file ← IO.FS.realPath file
-          results := results.insert file ((results.getD file {}).add record)
-      | .error e => throw (IO.userError s!"cannot read results file {entry.path}: {e}")
-    let mut shownOutput := false
-    for w in worksheets do
-      match results[← IO.FS.realPath w.source]? with
-      | some r => updateWorksheet w.source r all
-      | none =>
-        -- No exercise was checked: there are none, or the file does not elaborate. Only
-        -- worth mentioning if there are expectations that are now not updated.
-        unless ← (testJsonPath w.source).pathExists do continue
-        if out.exitCode != 0 && !shownOutput then
-          shownOutput := true
-          IO.eprint (out.stdout ++ out.stderr)
-        IO.eprintln s!"warning: {w.source}: no exercises were checked; its .test.json is kept"
-    return 0
+  IO.println s!"Checking {worksheets.size} worksheet(s)..."
+  -- Unexpected findings are errors, so the build is expected to fail; its output is only shown
+  -- for worksheets that could not be checked.
+  let out ← lakeOutput (#["build"] ++ worksheets.map toString)
+  let (results, failed) ← getResults worksheets
+  let mut shownOutput := false
+  for w in worksheets, r? in results do
+    match r? with
+    | some r => updateWorksheet w r all
+    | none =>
+      -- No results: the worksheet does not import Goudlokje or does not elaborate. Only worth
+      -- mentioning if there are expectations that are now not updated.
+      unless ← (testJsonPath w).pathExists do continue
+      if !shownOutput then
+        shownOutput := true
+        if out.exitCode != 0 then IO.eprint (out.stdout ++ out.stderr)
+        printFailed failed
+      IO.eprintln s!"warning: {w}: no exercises were checked; its .test.json is kept"
+  return 0
 
 end Goudlokje.Cli

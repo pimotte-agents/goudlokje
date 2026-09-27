@@ -8,7 +8,8 @@ import Lean.Linter.Basic
 # Explain linter
 
 Debugging aid: with `linter.goudlokje.explain` enabled, reports for every command the exercise
-name and the proof steps Goudlokje finds, numbered as in `.test.json` files. Steps are marked `closes` if they close their goal, or
+name and the proof steps Goudlokje finds, numbered as in `.test.json` files. Steps are marked
+`closes` if they close their goal, or
 with the goal chain they belong to (`chain n`) if they are probe points; `input` marks steps in a
 student input area.
 -/
@@ -22,8 +23,9 @@ def explainLinter : Linter where
   run := withSetOptionIn fun stx => do
     unless Linter.getLinterValue linter.goudlokje.explain (← Linter.getLinterOptions) do return
     let steps := collectSteps stx (← getInfoTrees)
-    let some first := steps[0]? | return
+    if steps.isEmpty then return
     let env ← getEnv
+    let verbose := verboseModules (← getOptions)
     let fileMap ← getFileMap
     let chains := goalChains steps
     let mut lines := #[]
@@ -31,12 +33,12 @@ def explainLinter : Linter where
       let line := s.line fileMap
       let chain := chains.findIdx? (·.any (·.stx == s.stx))
       let flags :=
-        (if s.isVerbose env then ["verbose"] else []) ++
+        (if s.isVerbose env verbose then ["verbose"] else []) ++
         (if ← inInputArea line then ["input"] else []) ++
         [chain.elim "closes" (s!"chain {·}")]
-      lines := lines.push m!"step {stepNumber fileMap first s}: {s.stx.getKind} [{", ".intercalate flags}]"
+      lines := lines.push m!"step {stepNumber steps s}: {s.stx.getKind} [{", ".intercalate flags}]"
     Linter.logLint linter.goudlokje.explain stx
-      m!"exercise {repr (exerciseName env stx)}:{indentD (MessageData.joinSep lines.toList "\n")}"
+      m!"exercise {repr (exerciseName env verbose stx)}:{indentD (MessageData.joinSep lines.toList "\n")}"
 
 initialize addLinter explainLinter
 

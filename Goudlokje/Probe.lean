@@ -1,4 +1,5 @@
-import Mathlib.Lean.ContextInfo
+import Lean.Elab.Command
+import Lean.Elab.Tactic.Basic
 import Goudlokje.Steps
 import Goudlokje.Options
 
@@ -12,7 +13,7 @@ messages a probe logs are discarded.
 
 namespace Goudlokje
 
-open Lean Elab Command Meta
+open Lean Elab Command Meta Term
 
 /-- A probe tactic, as configured and as parsed syntax. -/
 structure Probe where
@@ -38,25 +39,43 @@ inductive ProbeOutcome where
   | timeout
   deriving Repr, BEq, Inhabited
 
+/-- Runs the tactic `code` on `goal` in `MetaM`, given the term elaboration context and state to
+    run it in; returns the goals left open. -/
+private def runTacticCode (goal : MVarId) (code : Syntax) (ctx : Term.Context) (s : Term.State) :
+    MetaM (List MVarId) := do
+  instantiateMVarDeclMVars goal
+  let go : TermElabM (List MVarId) :=
+    Term.withSynthesize do Tactic.run goal (Tactic.evalTactic code *> Tactic.pruneSolvedGoals)
+  go.run' ctx s
+
+/-- Runs `x` on a copy of `goal`, one of the goals before `step`, in the context in which the step
+    was elaborated. (The original goal is already assigned by the step.) Messages that `x` logs are
+    discarded. -/
+def runOnGoal (step : Step) (goal : MVarId) (x : MVarId → MetaM α) : IO α := do
+  let some decl := step.info.mctxBefore.findDecl? goal
+    | throw (IO.userError "Goudlokje.runOnGoal: `goal` is not a goal before the step")
+  step.ctx.runMetaM decl.lctx do
+    -- Without the local instances, type class search would not see the hypotheses.
+    Meta.withLocalInstances (decl.lctx.decls.toList.filterMap id) do
+      let copy ← Meta.mkFreshExprSyntheticOpaqueMVar (← goal.getType)
+      x copy.mvarId!
+
 /-- Runs `probe` on `goal`, one of the goals before `step`, with a budget of `heartbeats`
     (in thousands, like `maxHeartbeats`). -/
 def runProbe (step : Step) (goal : MVarId) (probe : Probe) (heartbeats : Nat) :
     CommandElabM ProbeOutcome := do
   let termCtx ← liftTermElabM read
   let termState ← liftTermElabM get
-  let messages := (← get).messages
-  -- `runTactic` runs in a fresh `Core.Context` whose `maxHeartbeats` ignores the options, so the
+  -- `runMetaM` runs in a fresh `Core.Context` whose `maxHeartbeats` ignores the options, so the
   -- budget is set explicitly, counted from the start of the probe.
-  let outcome ← step.ctx.runTactic step.info goal fun goal =>
+  runOnGoal step goal fun goal =>
     Core.withCurrHeartbeats <|
     withTheReader Core.Context ({ · with maxHeartbeats := heartbeats * 1000 }) do
       tryCatchRuntimeEx
         (do
-          let goals ← runTactic' (ctx := termCtx) (s := termState) goal probe.code
+          let goals ← runTacticCode goal probe.code termCtx termState
           return if goals.isEmpty then .closed else .progress)
         (fun e => return if e.isMaxHeartbeat then .timeout else .failed)
-  modify ({ · with messages })
-  return outcome
 
 /-- Identifies a goal up to the names of its metavariables: its local context and target. -/
 abbrev GoalFingerprint := Array (Name × Expr × Option Expr) × Expr

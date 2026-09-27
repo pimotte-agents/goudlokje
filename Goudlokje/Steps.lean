@@ -52,17 +52,22 @@ def successorGoal? (s : Step) : Option MVarId := do
 def line (fileMap : FileMap) (s : Step) : Nat :=
   (fileMap.toPosition (s.stx.getPos?.getD 0)).line
 
-/-- Whether the step is written with a Lean Verbose tactic. -/
-def isVerbose (env : Environment) (s : Step) : Bool :=
-  isVerboseKind env s.stx.getKind
+/-- Whether the step is written with a Lean Verbose tactic, given the Verbose `modules` (see
+    `verboseModules`). -/
+def isVerbose (env : Environment) (modules : Array Name) (s : Step) : Bool :=
+  isVerboseKind env modules s.stx.getKind
+
+/-- The source position of the step, which identifies it within a command. -/
+def pos (s : Step) : Nat :=
+  (s.stx.getPos?.getD 0).byteIdx
 
 end Step
 
-/-- The number of step `s` within its exercise, whose first step is `first`: its line relative to
-    the first step, starting at 1. Step numbers identify steps in `.test.json` files, so they stay
-    valid when lines are added or removed outside the exercise. -/
-def stepNumber (fileMap : FileMap) (first s : Step) : Nat :=
-  s.line fileMap - first.line fileMap + 1
+/-- The number of step `s` among `steps`, the steps of its exercise in source order, starting at 1.
+    Step numbers identify steps in `.test.json` files, so they stay valid when lines are added or
+    removed outside the exercise, and when blank lines or comments are added inside it. -/
+def stepNumber (steps : Array Step) (s : Step) : Nat :=
+  (steps.findIdx? (·.pos == s.pos)).getD steps.size + 1
 
 /-- Groups the probe points among `steps` (those that do not close their main goal) into goal
     chains: a step continues the chain of an earlier step when it works on that step's successor
@@ -133,13 +138,13 @@ def collectSteps (cmd : Syntax) (trees : PersistentArray InfoTree) : Array Step 
     let (ctx, info) ← infos.get? (← syntaxKey? item)
     guard !info.goalsBefore.isEmpty
     return { stx := item, ctx, info }
-  return steps.qsort fun a b => a.stx.getPos?.get!.byteIdx < b.stx.getPos?.get!.byteIdx
+  return steps.qsort (·.pos < ·.pos)
 
 /-- The name of the exercise declared by `cmd`: the title of a Verbose `Exercise`/`Example`, the
     name of a named declaration, or for an anonymous `example` its statement (e.g.
     `example : 1 + 1 = 2`), which tells apart the examples in a file. -/
-def exerciseName (env : Environment) (cmd : Syntax) : String :=
-  if isVerboseKind env cmd.getKind then
+def exerciseName (env : Environment) (modules : Array Name) (cmd : Syntax) : String :=
+  if isVerboseKind env modules cmd.getKind then
     (cmd.getArgs.findSome? (·.isStrLit?)).getD "example"
   else if let some declId := cmd.find? (·.isOfKind ``Parser.Command.declId) then
     declId[0].getId.toString

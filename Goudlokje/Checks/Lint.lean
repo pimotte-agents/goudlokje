@@ -27,7 +27,7 @@ def rawTactics (e : Exercise) : CommandElabM (Array Issue) := do
   let env ← getEnv
   let allowed := splitListOption (goudlokje.allowedTactics.get (← getOptions))
   return e.inputSteps.filterMap fun step => do
-    guard <| !step.isVerbose env && !sorryTacticKinds.contains step.stx.getKind
+    guard <| !e.isVerbose env step && !sorryTacticKinds.contains step.stx.getKind
     let token := (leadingToken? step.stx).getD "?"
     guard <| !allowed.contains token
     return {

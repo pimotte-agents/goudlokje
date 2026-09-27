@@ -9,7 +9,11 @@ between a `:::input` and its closing `:::` in a Waterproof `#doc` file. Files wi
 are not checked at all.
 
 The markers live in the document text, not in the Lean code that the linters see, so the areas are
-computed from the file on disk, once per file.
+computed from the file on disk, once per file (and again when it is saved). The source text of the
+command cannot be used instead: the Waterproof genre elaborates a copy of the document in which
+everything but the Lean code is blanked out, and input areas are replaced by the same placeholder
+as other prose. As a consequence, while a worksheet is edited, the areas are those of the saved
+file.
 -/
 
 namespace Goudlokje
