@@ -15,8 +15,8 @@ results to the results files (see `emitRecords`).
   findings are recorded as expected, stale expectations removed, after confirmation or, with
   `--all`, directly.
 
-Neither rebuilds up-to-date worksheets: results that are missing (for worksheets with a
-`.test.json`) are recomputed with `lake lean`, which leaves the build state alone.
+Neither rebuilds up-to-date worksheets: missing results are recomputed with `lake lean`, which
+leaves the build state alone (by `check` only for worksheets with a `.test.json`).
 -/
 
 namespace Goudlokje.Cli
@@ -59,7 +59,9 @@ def check (paths : Array FilePath) : IO UInt32 := do
     IO.eprintln "No worksheets found."
     return 1
   let built ← build worksheets
-  let (results, failed) ← getResults worksheets
+  -- Without results, the build output is all there is; it can only be out of date if there is a
+  -- `.test.json` that changed.
+  let (results, failed) ← getResults worksheets fun w => (testJsonPath w).pathExists
   printFailed failed
   let mut errors := !failed.isEmpty
   for w in worksheets, r? in results do
@@ -110,7 +112,7 @@ def update (paths : Array FilePath) (all : Bool) : IO UInt32 := do
   -- Unexpected findings are errors, so the build is expected to fail; its output is only shown
   -- for worksheets that could not be checked.
   let out ← lakeOutput (#["build"] ++ worksheets.map toString)
-  let (results, failed) ← getResults worksheets
+  let (results, failed) ← getResults worksheets fun _ => pure true
   let mut shownOutput := false
   for w in worksheets, r? in results do
     match r? with

@@ -63,14 +63,15 @@ def currentResults? (results : Std.HashMap FilePath ModuleResults) (worksheet : 
   return some r
 
 /-- The current results of the `worksheets`, after a build. A worksheet has no current results if
-    it was built before its results file was deleted, or if it does not import Goudlokje; the
-    former are elaborated again if they have a `.test.json` (without one, there is nothing to
-    check them against). Returns the results, and the output of elaborations that failed. -/
-def getResults (worksheets : Array FilePath) :
+    its results file was deleted after it was built (or it was built elsewhere), or if it does not
+    import Goudlokje. Those for which `needed` holds are elaborated again with `lake lean`, which
+    writes new results without touching the build. Returns the results, and the output of
+    elaborations that failed. -/
+def getResults (worksheets : Array FilePath) (needed : FilePath → IO Bool) :
     IO (Array (Option ModuleResults) × Array (FilePath × IO.Process.Output)) := do
   let current ← worksheets.mapM (currentResults? (← loadResults))
   let missing ← (worksheets.zip current).filterMapM fun (w, r) => do
-    return if r.isNone && (← (testJsonPath w).pathExists) then some w else none
+    return if r.isNone && (← needed w) then some w else none
   if missing.isEmpty then return (current, #[])
   let outputs ← parallelMap missing elaborate
   let results ← loadResults

@@ -145,9 +145,11 @@ directories (default: the current directory).
 Neither command rebuilds worksheets that are up to date. Whenever a worksheet is checked on the
 command line (`lake build`, `lake lean`), Goudlokje records everything it found in
 `.lake/goudlokje/<module>.jsonl`, together with hashes of the source and of the `.test.json` it
-was checked against. If these results are missing for a worksheet with a `.test.json` (e.g. after
-deleting `.lake/goudlokje`), the commands recompute them with `lake lean`, which does not touch the
-build. The language server does not record results.
+was checked against. If these results are missing (e.g. after deleting
+`.lake/goudlokje`), `update` recomputes them with `lake lean`, which does not touch the build, and
+so does `check` for worksheets with a `.test.json`. So pass `update` only worksheets: other modules
+never have results and are elaborated again every time. The language server does not record
+results.
 
 ### CI
 
