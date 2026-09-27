@@ -33,19 +33,23 @@ private def recheck (worksheet : FilePath) (r : ModuleResults) : IO Bool := do
   let expectations ← match ← loadExpectations (testJsonPath worksheet) with
     | .ok e => pure e
     | .error e => IO.eprintln s!"error: {e}"; return true
-  IO.println s!"{worksheet}: .test.json changed since the worksheet was built; comparing the \
-    recorded results with it"
+  IO.println s!"{worksheet}: .test.json changed since the worksheet was built, so the build \
+    output above is out of date for it; comparing the recorded results with .test.json:"
+  let mut problems := 0
   let mut errors := false
   for f in r.findings do
     unless (expectations.get f.exercise).expects f.check f.step f.tactic? do
       let severity := if f.check.severity == .error then "error" else "warning"
       IO.eprintln s!"{severity}: {worksheet}:{f.line}:{f.column}: {f.message}"
+      problems := problems + 1
       errors := errors || f.check.severity == .error
   for change in proposeChanges expectations r do
     if change matches .recordShortcut .. | .recordLint .. | .allowSorry .. then continue
     let severity := if change.automatic then "error" else "warning"
     IO.eprintln s!"{severity}: {worksheet}: stale expectation: {change.describe}"
+    problems := problems + 1
     errors := errors || change.automatic
+  if problems == 0 then IO.println s!"{worksheet}: all findings are expected"
   return errors
 
 /-- `goudlokje check`; returns the exit code. -/
