@@ -75,7 +75,10 @@ def runProbe (step : Step) (goal : MVarId) (probe : Probe) (heartbeats : Nat) :
       tryCatchRuntimeEx
         (do
           let goals ← runTacticCode goal probe.code termCtx termState
-          return if goals.isEmpty then .closed else .progress)
+          unless goals.isEmpty do return .progress
+          -- A proof with `sorry` does not count, e.g. when the probe's elaboration failed and
+          -- Lean recovered from the error with `sorry`.
+          return if (← instantiateMVars (.mvar goal)).hasSorry then .failed else .closed)
         (fun e => return if e.isMaxHeartbeat then .timeout else .failed)
 
 /-- Identifies a goal up to the names of its metavariables: its local context and target. -/
