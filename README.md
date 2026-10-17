@@ -64,7 +64,7 @@ Then `lake build` checks the worksheets, and the editor shows the findings.
 | Option                                   | Default | Meaning                                                                                      |
 |------------------------------------------|---------|----------------------------------------------------------------------------------------------|
 | `goudlokje.probes`                       | `""`    | Probe tactics, separated by `;;`. Without probes, the `shortcut` check does not run.         |
-| `goudlokje.probeHeartbeats`              | `100`   | Heartbeat budget per probe, in thousands (like `maxHeartbeats`). A probe that runs out is not a shortcut. |
+| `goudlokje.probeHeartbeats`              | `0`     | Heartbeat budget per probe, in thousands (like `maxHeartbeats`); `0` means the value of `maxHeartbeats`, the budget a student's tactic gets. A probe that runs out is not a shortcut. |
 | `goudlokje.allowedTactics`               | `""`    | Raw Lean tactics allowed in Verbose proofs, as leading tokens separated by `;;`, e.g. `"norm_num;; rfl"`. |
 | `goudlokje.verboseModules`               | `"Verbose"` | The modules whose tactics count as Lean Verbose tactics, as module name prefixes separated by `;;`. Add the modules of your own Verbose-style tactics, e.g. `"Verbose;; MyProject.Tactics"`; keep `Verbose` in the list. |
 | `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry` | `true` | Turn a check on or off.                 |

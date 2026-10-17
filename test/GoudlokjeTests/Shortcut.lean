@@ -65,7 +65,8 @@ example : 1 + 1 = 2 := by
   norm_num
 
 -- Every probe that succeeds at the first shortcut of a chain is reported; a probe that runs out
--- of heartbeats is not a shortcut.
+-- of heartbeats is not a shortcut. By default a probe's budget is `maxHeartbeats`.
+set_option maxHeartbeats 100 in
 set_option goudlokje.probes "burn;; decide;; norm_num" in
 /--
 error: `decide` closes the goal at step 1 of exercise "multiple probes", so the rest of this part of the proof can be skipped

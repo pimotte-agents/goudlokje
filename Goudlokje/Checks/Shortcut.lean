@@ -18,6 +18,13 @@ namespace Goudlokje.Checks
 
 open Lean Elab Command
 
+/-- The heartbeat budget of a single probe, in thousands: `goudlokje.probeHeartbeats`, or
+    `maxHeartbeats` if that is 0. -/
+def probeHeartbeats (opts : Lean.Options) : Nat :=
+  match goudlokje.probeHeartbeats.get opts with
+  | 0 => Lean.maxHeartbeats.get opts
+  | n => n
+
 /-- The shortcuts in `e`, or `none` if no probes are configured. -/
 def shortcuts (e : Exercise) : CommandElabM (Option (Array Issue)) := do
   let opts ← getOptions
@@ -25,7 +32,7 @@ def shortcuts (e : Exercise) : CommandElabM (Option (Array Issue)) := do
     | .ok probes => pure probes
     | .error msg => logErrorAt e.stx msg; return none
   if probes.isEmpty then return none
-  let heartbeats := goudlokje.probeHeartbeats.get opts
+  let heartbeats := probeHeartbeats opts
   let mut issues : Array Issue := #[]
   let mut cache : ProbeCache := {}
   for chain in goalChains e.steps do

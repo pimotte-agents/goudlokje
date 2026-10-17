@@ -59,9 +59,10 @@ register_option goudlokje.probes : String := {
 }
 
 register_option goudlokje.probeHeartbeats : Nat := {
-  defValue := 100
+  defValue := 0
   descr := "(Goudlokje) the heartbeat budget of a single probe, in thousands (like \
-    `maxHeartbeats`); a probe that runs out does not count as a shortcut"
+    `maxHeartbeats`); 0 means the value of `maxHeartbeats`. A probe that runs out does not count \
+    as a shortcut"
 }
 
 /-- Splits a `;;`-separated list option (such as `goudlokje.probes`) into its trimmed, non-empty
