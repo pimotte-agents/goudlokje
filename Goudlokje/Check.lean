@@ -21,12 +21,14 @@ inductive Check where
   | typeAscription
   /-- A `sorry` in a proof (B3). -/
   | sorry
+  /-- The help tactic gives no hint at a step (see `Checks.Help`). -/
+  | help
   deriving Repr, BEq, Hashable, Inhabited
 
 namespace Check
 
 /-- All checks, in the order they run. -/
-def all : Array Check := #[.shortcut, .rawTactic, .typeAscription, .sorry]
+def all : Array Check := #[.shortcut, .rawTactic, .typeAscription, .sorry, .help]
 
 /-- The name of the check, as used in `.test.json` and the results file. -/
 def name : Check → String
@@ -34,6 +36,7 @@ def name : Check → String
   | .rawTactic => "rawTactic"
   | .typeAscription => "typeAscription"
   | .sorry => "sorry"
+  | .help => "help"
 
 /-- The check called `name`, if any. -/
 def ofName? (name : String) : Option Check :=
@@ -45,6 +48,7 @@ def linterOption : Check → Lean.Option Bool
   | .rawTactic => linter.goudlokje.rawTactic
   | .typeAscription => linter.goudlokje.typeAscription
   | .sorry => linter.goudlokje.sorry
+  | .help => linter.goudlokje.help
 
 /-- The severity of an issue that `.test.json` does not expect. -/
 def severity : Check → MessageSeverity

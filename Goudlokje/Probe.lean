@@ -39,9 +39,16 @@ inductive ProbeOutcome where
   | timeout
   deriving Repr, BEq, Inhabited
 
+/-- The heartbeat budget of a single probe, in thousands: `goudlokje.probeHeartbeats`, or
+    `maxHeartbeats` if that is 0. -/
+def probeHeartbeats (opts : Lean.Options) : Nat :=
+  match goudlokje.probeHeartbeats.get opts with
+  | 0 => Lean.maxHeartbeats.get opts
+  | n => n
+
 /-- Runs the tactic `code` on `goal` in `MetaM`, given the term elaboration context and state to
     run it in; returns the goals left open. -/
-private def runTacticCode (goal : MVarId) (code : Syntax) (ctx : Term.Context) (s : Term.State) :
+def runTacticCode (goal : MVarId) (code : Syntax) (ctx : Term.Context) (s : Term.State) :
     MetaM (List MVarId) := do
   instantiateMVarDeclMVars goal
   let go : TermElabM (List MVarId) :=

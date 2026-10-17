@@ -11,6 +11,7 @@ incorrect, and not too easy. It checks exercises written with
 | `rawTactic`      | a raw Lean tactic (e.g. `exact`) instead of a Verbose tactic                              | error    |
 | `typeAscription` | a type annotation, `(e : T)` or `Fix x : T`                                               | warning  |
 | `sorry`          | a `sorry` or `admit`                                                                      | error    |
+| `help`           | the help tactic (`goudlokje.help`, e.g. `help`) gives no hint at a step                    | error    |
 
 The checks are Lean linters: they run while Lean elaborates the worksheet, during `lake build`
 and in the editor. Only exercises written with Verbose (a Verbose `Exercise`/`Example`, or a
@@ -66,8 +67,10 @@ Then `lake build` checks the worksheets, and the editor shows the findings.
 | `goudlokje.probes`                       | `""`    | Probe tactics, separated by `;;`. Without probes, the `shortcut` check does not run.         |
 | `goudlokje.probeHeartbeats`              | `0`     | Heartbeat budget per probe, in thousands (like `maxHeartbeats`); `0` means the value of `maxHeartbeats`, the budget a student's tactic gets. A probe that runs out is not a shortcut. |
 | `goudlokje.allowedTactics`               | `""`    | Raw Lean tactics allowed in Verbose proofs, as leading tokens separated by `;;`, e.g. `"norm_num;; rfl"`. |
+| `goudlokje.help`                         | `""`    | The help tactic that must give a hint at every step, e.g. `"help"` (Verbose's `help`); empty turns the check off. |
+| `goudlokje.noHelpMessages`               | `"I have nothing to say about this goal.;; No suggestion"` | Messages of the help tactic that mean it has no hint, separated by `;;`. |
 | `goudlokje.verboseModules`               | `"Verbose"` | The modules whose tactics count as Lean Verbose tactics, as module name prefixes separated by `;;`. Add the modules of your own Verbose-style tactics, e.g. `"Verbose;; MyProject.Tactics"`; keep `Verbose` in the list. |
-| `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry` | `true` | Turn a check on or off.                 |
+| `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry`, `.help` | `true` | Turn a check on or off.                 |
 | `linter.goudlokje.explain`               | `false` | Debugging aid: shows the steps Goudlokje finds in each command and how it groups them.       |
 
 Like any option, they can also be set in a file (`set_option … in` for a single exercise).
@@ -148,6 +151,8 @@ Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise w
   numbers.
 - **`allowSorry`** allows `sorry` in an exercise, e.g. in a true-or-false exercise whose statement
   is false.
+- **`help` findings** (steps at which the help tactic gives no hint) are recorded under `lint`
+  like `typeAscription`, e.g. `{"check":"help","step":2}`.
 - **`rawTactic` findings cannot be recorded.** Allow a tactic for the whole project with
   `goudlokje.allowedTactics` instead.
 
@@ -214,7 +219,7 @@ Code overview (`Goudlokje/`):
 | `Steps`, `Origin`           | proof steps from the syntax and info trees; Verbose or not, by the module that declares a tactic (`goudlokje.verboseModules`) |
 | `Scope`, `Exercise`         | input areas; the per-command context shared by the checks                   |
 | `Check`, `Finding`          | the checks and their properties; the issues they find                       |
-| `Probe`, `Checks/`          | running probes with a budget; the four checks                               |
+| `Probe`, `Checks/`          | running probes with a budget; the five checks                               |
 | `Linter`, `Report`          | the linter: messages, stale entries, the results files                      |
 | `Alternative`               | the `Alternative solution:` tactic                                          |
 | `Expectations`              | the `.test.json` format; which findings are expected, which entries stale    |

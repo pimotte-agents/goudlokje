@@ -41,6 +41,11 @@ register_option linter.goudlokje.sorry : Bool := {
   descr := "(Goudlokje) report `sorry` in exercises that do not allow it (B3)"
 }
 
+register_option linter.goudlokje.help : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report steps at which the help tactic (`goudlokje.help`) gives no hint"
+}
+
 register_option goudlokje.allowedTactics : String := {
   defValue := ""
   descr := "(Goudlokje) raw Lean tactics allowed in Verbose proofs, as `;;`-separated leading \
@@ -63,6 +68,17 @@ register_option goudlokje.probeHeartbeats : Nat := {
   descr := "(Goudlokje) the heartbeat budget of a single probe, in thousands (like \
     `maxHeartbeats`); 0 means the value of `maxHeartbeats`. A probe that runs out does not count \
     as a shortcut"
+}
+
+register_option goudlokje.help : String := {
+  defValue := ""
+  descr := "(Goudlokje) the help tactic that must give a hint at every step, e.g. \"help\"; \
+    empty disables the help check"
+}
+
+register_option goudlokje.noHelpMessages : String := {
+  defValue := "I have nothing to say about this goal.;; No suggestion"
+  descr := "(Goudlokje) messages of the help tactic that mean it has no hint, separated by `;;`"
 }
 
 /-- Splits a `;;`-separated list option (such as `goudlokje.probes`) into its trimmed, non-empty

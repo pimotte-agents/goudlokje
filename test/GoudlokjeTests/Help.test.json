@@ -1,0 +1,8 @@
+{
+  "exercises": {
+    "recorded": {
+      "lint": [{"check": "help", "step": 1}]
+    }
+  },
+  "testJsonVersion": 3
+}
