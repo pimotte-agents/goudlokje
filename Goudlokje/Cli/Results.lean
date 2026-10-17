@@ -48,20 +48,31 @@ def parseResultLines (contents : String) : Except String (Array (String × Resul
     return some (← json.getObjValAs? String "file", ← fromJson? json)
 
 /-- The results in the results directory of the workspace in the current directory, by the real
-    path of the worksheet. Results of files that no longer exist are left out. -/
+    path of the worksheet. Results of files that no longer exist are left out.
+
+    A worksheet can have several results files: `lake build` names the module after its path in
+    the library's source directory, `lake lean` after its path in the workspace, and these differ
+    when the library has a `srcDir`. Only the most recently written one counts; merging them would
+    mix old and new results and count every exercise twice. -/
 def loadResults : IO (Std.HashMap FilePath ModuleResults) := do
   let dir := resultsDir (← IO.currentDir)
   unless ← dir.isDir do return {}
-  let mut results := {}
+  let mut results : Std.HashMap FilePath (IO.FS.SystemTime × ModuleResults) := {}
   for entry in ← dir.readDir do
     if entry.path.extension != some "jsonl" then continue
     match parseResultLines (← IO.FS.readFile entry.path) with
     | .ok records =>
+      let modified := (← entry.path.metadata).modified
+      let mut inFile : Std.HashMap FilePath ModuleResults := {}
       for (file, record) in records do
         let some file ← try some <$> IO.FS.realPath file catch _ => pure none | continue
-        results := results.insert file ((results.getD file {}).add record)
+        inFile := inFile.insert file ((inFile.getD file {}).add record)
+      for (file, r) in inFile do
+        if let some (time, _) := results[file]? then
+          if time > modified then continue
+        results := results.insert file (modified, r)
     | .error e => IO.eprintln s!"warning: ignoring results file {entry.path}: {e}"
-  return results
+  return results.map fun _ (_, r) => r
 
 /-- The results of `worksheet` among `results`, if they are for its current source. -/
 def currentResults? (results : Std.HashMap FilePath ModuleResults) (worksheet : FilePath) :
