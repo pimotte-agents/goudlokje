@@ -45,7 +45,8 @@ Lean Verbose, the Waterproof genre and Mathlib, in the versions it chooses.
    lean_lib Worksheets where
      leanOptions := #[
        ⟨`weak.goudlokje.probes, "decide;; tauto;; omega;; norm_num;; simp"⟩,
-       ⟨`weak.goudlokje.allowedTactics, "norm_num"⟩
+       ⟨`weak.goudlokje.allowedTactics, "norm_num"⟩,
+       ⟨`weak.goudlokje.help, "help"⟩
      ]
    ```
 

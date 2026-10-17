@@ -2,4 +2,4 @@
 set -e
 lake build
 lake test
-e2e/run.sh
+test/e2e/run.sh
