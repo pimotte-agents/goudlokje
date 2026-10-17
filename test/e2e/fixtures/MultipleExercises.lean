@@ -2,7 +2,7 @@
 -- goal chains. The anonymous `example` is named after its statement.
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/VerboseMultiDecl.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/MultipleExercises.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre

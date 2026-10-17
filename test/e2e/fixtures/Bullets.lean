@@ -6,7 +6,7 @@
 -- (step 4) is in the same chain as step 3, so it is not reported separately.
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/VerboseWaterproofAssumeThatInBullet.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/Bullets.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import WaterproofGenre
 import Verbose.English.All

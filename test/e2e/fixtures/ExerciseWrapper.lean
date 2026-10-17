@@ -6,7 +6,7 @@
 -- goal and is not probed.
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/VerboseExercise.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/ExerciseWrapper.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre

@@ -6,7 +6,7 @@
 -- 3 (`Let's now prove that`, whose goal Verbose blocks until then; only `tauto` sees through that).
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/SkipLastStep.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/ClosingSteps.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre

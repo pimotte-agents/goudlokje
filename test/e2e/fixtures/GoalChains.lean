@@ -8,7 +8,7 @@
 -- probed.
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/VerboseMultiStep.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/GoalChains.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre

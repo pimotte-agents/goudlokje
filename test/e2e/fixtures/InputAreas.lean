@@ -3,7 +3,7 @@
 -- probe, and `show` and `norm_num` are raw tactics.
 --
 -- Findings with the fixture probes (`decide`, `tauto`, `omega`, `norm_num`, `simp`, `ring`) are in
--- expected/VerboseWaterproofInputArea.test.json; raw-tactic errors in expected/errors.txt.
+-- expected/InputAreas.test.json; raw-tactic errors in expected/errors.txt.
 import Goudlokje
 import Verbose.English.All
 import WaterproofGenre
