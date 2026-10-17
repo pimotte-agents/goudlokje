@@ -91,6 +91,33 @@ report a shortcut at `Let's now prove that`.
 
 ---
 
+## Alternative solutions
+
+`Alternative solution:` records another way to prove the current goal(s), next to the reference
+solution. The indented block that follows must close all current goals; otherwise it is an error.
+Errors inside the block are reported without stopping the rest of the proof. Afterwards the proof
+state is restored, so the reference solution continues as if the block were not there:
+
+```lean
+Exercise "1.1.1"
+  …
+Proof:
+  Alternative solution:
+    We conclude by hypothesis
+  Assume that p
+  …
+QED
+```
+
+The steps of an alternative solution are checked like the other steps: `rawTactic`, `sorry`,
+the shortcut probes and the step numbering include them. The `Alternative solution:` line itself
+is not a step, and the probes on the alternative run separately from those of the reference
+solution. A `sorry` inside it does not give Lean's "declaration uses sorry" warning; only
+Goudlokje's `sorry` check applies. Placed in a student input area, an alternative is removed
+together with the reference solution when the student version is made.
+
+---
+
 ## Expected findings: `.test.json`
 
 Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise what is expected:
@@ -189,5 +216,6 @@ Code overview (`Goudlokje/`):
 | `Check`, `Finding`          | the checks and their properties; the issues they find                       |
 | `Probe`, `Checks/`          | running probes with a budget; the four checks                               |
 | `Linter`, `Report`          | the linter: messages, stale entries, the results files                      |
+| `Alternative`               | the `Alternative solution:` tactic                                          |
 | `Expectations`              | the `.test.json` format; which findings are expected, which entries stale    |
 | `Cli/`                      | the `check` and `update` commands; reading the results files                |

@@ -88,9 +88,11 @@ def goalChains (steps : Array Step) : Array (Array Step) := Id.run do
   return chains
 
 /-- Tactics that only focus on a goal and contain a nested tactic sequence. They are not steps
-    themselves; the tactics inside them are. -/
+    themselves; the tactics inside them are. (`Alternative solution:` is declared in
+    `Goudlokje.Alternative`.) -/
 private def focusingKinds : Array SyntaxNodeKind :=
-  #[``Lean.cdot, ``Lean.Parser.Tactic.case, `Lean.Parser.Tactic.«tacticNext_=>_»]
+  #[``Lean.cdot, ``Lean.Parser.Tactic.case, `Lean.Parser.Tactic.«tacticNext_=>_»,
+    `Goudlokje.alternativeSolution]
 
 /-- The items of all (nested) tactic sequences in `stx`, excluding focusing tactics. -/
 partial def tacticSeqItems (stx : Syntax) : Array Syntax :=

@@ -17,9 +17,10 @@ open Lean
 def kindModule? (env : Environment) (kind : SyntaxNodeKind) : Option Name :=
   (env.getModuleIdxFor? kind).bind (env.header.moduleNames[·]?)
 
-/-- The module name prefixes configured by `goudlokje.verboseModules`. -/
+/-- The module name prefixes configured by `goudlokje.verboseModules`, and `Goudlokje` itself, whose
+    `Alternative solution:` is written like a Verbose tactic. -/
 def verboseModules (opts : Options) : Array Name :=
-  (splitListOption (goudlokje.verboseModules.get opts)).map String.toName
+  ((splitListOption (goudlokje.verboseModules.get opts)).map String.toName).push `Goudlokje
 
 /-- Whether the parser for `kind` is declared in one of the `modules` (see `verboseModules`). -/
 def isVerboseKind (env : Environment) (modules : Array Name) (kind : SyntaxNodeKind) : Bool :=
