@@ -49,12 +49,13 @@ private def runTacticCode (goal : MVarId) (code : Syntax) (ctx : Term.Context) (
   go.run' ctx s
 
 /-- Runs `x` on a copy of `goal`, one of the goals before `step`, in the context in which the step
-    was elaborated. (The original goal is already assigned by the step.) Messages that `x` logs are
-    discarded. -/
+    was elaborated, with the metavariable assignments from before the step. (The original goal is
+    already assigned by the step, and `step.ctx` holds the assignments made by later steps, which
+    must not be visible to `x`.) Messages that `x` logs are discarded. -/
 def runOnGoal (step : Step) (goal : MVarId) (x : MVarId → MetaM α) : IO α := do
   let some decl := step.info.mctxBefore.findDecl? goal
     | throw (IO.userError "Goudlokje.runOnGoal: `goal` is not a goal before the step")
-  step.ctx.runMetaM decl.lctx do
+  { step.ctx with mctx := step.info.mctxBefore }.runMetaM decl.lctx do
     -- Without the local instances, type class search would not see the hypotheses.
     Meta.withLocalInstances (decl.lctx.decls.toList.filterMap id) do
       let copy ← Meta.mkFreshExprSyntheticOpaqueMVar (← goal.getType)
