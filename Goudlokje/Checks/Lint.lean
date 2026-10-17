@@ -8,9 +8,9 @@ import Goudlokje.SyntaxUtil
 Style checks on the steps of Verbose exercises in student input areas, all based on the syntax
 the student wrote:
 
-* `rawTactics` (B1): raw Lean tactics instead of Verbose tactics.
-* `typeAscriptions` (B2): type annotations, `(e : T)` and `Fix x : T`.
-* `sorries` (B3): `sorry` and `admit`.
+* `rawTactics` (check `rawTactic`): raw Lean tactics instead of Verbose tactics.
+* `typeAscriptions` (check `typeAscription`): type annotations, `(e : T)` and `Fix x : T`.
+* `sorries` (check `sorry`): `sorry` and `admit`.
 -/
 
 namespace Goudlokje.Checks
@@ -21,7 +21,7 @@ open Lean Elab Command
 private def sorryTacticKinds : Array SyntaxNodeKind :=
   #[``Lean.Parser.Tactic.tacticSorry, `Lean.Parser.Tactic.tacticAdmit]
 
-/-- B1: steps using a raw Lean tactic, unless its leading token is allowed by
+/-- Check `rawTactic`: steps using a raw Lean tactic, unless its leading token is allowed by
     `goudlokje.allowedTactics`. `sorry` and `admit` are left to `sorries`. -/
 def rawTactics (e : Exercise) : CommandElabM (Array Issue) := do
   let env ← getEnv
@@ -42,7 +42,8 @@ private def isFixKind (env : Environment) (kind : SyntaxNodeKind) : Bool :=
   | some (.str (.str `Verbose _) "Fix") => true
   | _ => false
 
-/-- B2: type ascriptions `(e : T)` in steps, and `Fix` steps with a typed binder. -/
+/-- Check `typeAscription`: type ascriptions `(e : T)` in steps, and `Fix` steps with a typed
+    binder. -/
 def typeAscriptions (e : Exercise) : CommandElabM (Array Issue) := do
   let env ← getEnv
   let mut issues : Array Issue := #[]
@@ -59,7 +60,7 @@ def typeAscriptions (e : Exercise) : CommandElabM (Array Issue) := do
           {repr e.name}" }
   return issues
 
-/-- B3: `sorry` and `admit`, as tactics or as terms inside a step. -/
+/-- Check `sorry`: `sorry` and `admit`, as tactics or as terms inside a step. -/
 def sorries (e : Exercise) : CommandElabM (Array Issue) := do
   let mut issues : Array Issue := #[]
   for step in e.inputSteps do

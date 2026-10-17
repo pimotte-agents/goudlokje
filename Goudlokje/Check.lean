@@ -15,11 +15,11 @@ open Lean
 inductive Check where
   /-- A probe tactic closes a goal before the end of the proof (see `Checks.Shortcut`). -/
   | shortcut
-  /-- A raw Lean tactic in a Verbose proof (B1). -/
+  /-- A raw Lean tactic in a Verbose proof. -/
   | rawTactic
-  /-- A type annotation in a proof step (B2). -/
+  /-- A type annotation in a proof step. -/
   | typeAscription
-  /-- A `sorry` in a proof (B3). -/
+  /-- A `sorry` in a proof. -/
   | sorry
   /-- The help tactic gives no hint at a step (see `Checks.Help`). -/
   | help

@@ -2,7 +2,8 @@ import Goudlokje.Linter
 import Verbose.English.All
 import GoudlokjeTests.CustomTactic
 
-/-! Tests for the lint checks (B1–B3). Expectations are listed in `Lint.test.json`. -/
+/-! Tests for the lint checks (`rawTactic`, `typeAscription`, `sorry`). Expectations are listed in
+`Lint.test.json`. -/
 
 set_option linter.unusedTactic false
 set_option linter.unusedVariables false
@@ -12,7 +13,7 @@ set_option warn.sorry false
 :::input
 -/
 
-/-! ## B1: raw Lean tactics -/
+/-! ## `rawTactic`: raw Lean tactics -/
 
 -- Raw Lean tactics in a Verbose proof are errors.
 /--
@@ -104,7 +105,7 @@ Proof:
   exact trivial
 QED
 
-/-! ## B2: type annotations -/
+/-! ## `typeAscription`: type annotations -/
 
 section
 set_option linter.goudlokje.rawTactic false
@@ -157,7 +158,7 @@ QED
 
 end
 
-/-! ## B3: sorry -/
+/-! ## `sorry` -/
 
 section
 set_option linter.goudlokje.rawTactic false

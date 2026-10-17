@@ -28,17 +28,17 @@ register_option linter.goudlokje.shortcut : Bool := {
 register_option linter.goudlokje.rawTactic : Bool := {
   defValue := true
   descr := "(Goudlokje) report raw Lean tactics in Verbose proofs, except those allowed by \
-    `goudlokje.allowedTactics` (B1)"
+    `goudlokje.allowedTactics`"
 }
 
 register_option linter.goudlokje.typeAscription : Bool := {
   defValue := true
-  descr := "(Goudlokje) report type annotations in proof steps: `(e : T)` and `Fix x : T` (B2)"
+  descr := "(Goudlokje) report type annotations in proof steps: `(e : T)` and `Fix x : T`"
 }
 
 register_option linter.goudlokje.sorry : Bool := {
   defValue := true
-  descr := "(Goudlokje) report `sorry` in exercises that do not allow it (B3)"
+  descr := "(Goudlokje) report `sorry` in exercises that do not allow it"
 }
 
 register_option linter.goudlokje.help : Bool := {
