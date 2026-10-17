@@ -62,6 +62,11 @@ grep -v 'Fix n : ℕ' e2e/Sheet.lean | sed 's/Exercise "annotation"/Exercise "re
 goudlokje update --all "$work" || fail "update failed"
 diff -u e2e/Sheet.updated.json "$work/Sheet.test.json" || fail "unexpected .test.json"
 
+echo "check fails on exercises with the same name"
+sed 's/Exercise "annotation"/Exercise "shortcut"/' e2e/Sheet.lean > "$work/Sheet.lean"
+goudlokje check "$work" && fail "check passed"
+grep -q 'several exercises are called "shortcut"' "$out" || fail "no duplicate name error"
+
 echo "fixtures produce exactly the expected findings"
 fixtures=e2e/work/Fixtures
 mkdir -p "$fixtures"

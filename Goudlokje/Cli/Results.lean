@@ -23,12 +23,20 @@ structure ModuleResults where
   /-- Exercises that could not be checked because of elaboration errors. -/
   skipped      : Std.HashSet String := {}
   findings     : Array Finding := #[]
+  /-- Names of more than one checked exercise. Their expectations in `.test.json` would be
+      shared, so they must be renamed. -/
+  duplicates   : Array String := #[]
   deriving Inhabited
 
 /-- Adds the record `r` to the results. -/
 def ModuleResults.add (acc : ModuleResults) : ResultRecord → ModuleResults
   | .header source expectations => { acc with source, expectations }
-  | .exercise name checks => { acc with exercises := acc.exercises.insert name checks }
+  | .exercise name checks =>
+    let duplicates :=
+      if acc.exercises.contains name && !acc.duplicates.contains name then
+        acc.duplicates.push name
+      else acc.duplicates
+    { acc with exercises := acc.exercises.insert name checks, duplicates }
   | .skipped name => { acc with skipped := acc.skipped.insert name }
   | .finding f => { acc with findings := acc.findings.push f }
 

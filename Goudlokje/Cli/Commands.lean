@@ -27,6 +27,15 @@ open System
 private def printFailed (failed : Array (FilePath × IO.Process.Output)) : IO Unit :=
   for (_, out) in failed do IO.eprint (out.stdout ++ out.stderr)
 
+/-- Reports exercises of `worksheet` that share a name (they would share their expectations), with
+    the given severity; returns whether there are any. -/
+private def reportDuplicates (worksheet : FilePath) (r : ModuleResults) (severity : String) :
+    IO Bool := do
+  for name in r.duplicates do
+    IO.eprintln s!"{severity}: {worksheet}: several exercises are called {name.quote}; give them \
+      different names, since .test.json identifies exercises by name"
+  return !r.duplicates.isEmpty
+
 /-- Compares the results `r` of `worksheet` with its current `.test.json`, printing what is
     unexpected or stale like the linter does; returns whether there are errors. -/
 private def recheck (worksheet : FilePath) (r : ModuleResults) : IO Bool := do
@@ -66,6 +75,7 @@ def check (paths : Array FilePath) : IO UInt32 := do
   let mut errors := !failed.isEmpty
   for w in worksheets, r? in results do
     let some r := r? | continue
+    errors := (← reportDuplicates w r "error") || errors
     -- The build checked `w` against the `.test.json` of that time.
     if r.expectations == (← expectationsHash (testJsonPath w)) then continue
     errors := (← recheck w r) || errors
@@ -89,6 +99,7 @@ private def updateWorksheet (source : FilePath) (results : ModuleResults) (all :
       return
   for name in results.skipped do
     IO.eprintln s!"warning: {source}: exercise {name.quote} has errors; its expectations are kept"
+  discard <| reportDuplicates source results "warning"
   let mut new := old
   for change in proposeChanges old results do
     if change.automatic || all then

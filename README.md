@@ -113,7 +113,8 @@ Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise w
 ```
 
 - **Exercises** are identified by the title of a Verbose `Exercise`/`Example`, the name of a
-  theorem, or the statement of an anonymous `example` (such as `"example : 1 + 1 = 2"`).
+  theorem, or the statement of an anonymous `example` (such as `"example : 1 + 1 = 2"`). Names must
+  be unique within a worksheet; `goudlokje check` fails on exercises that share a name.
 - **Steps** are numbered by position among the steps of the exercise, starting at 1 (nested steps,
   e.g. in a bullet, count too). So they stay valid when other parts of the file change, and when
   blank lines or comments are added inside the exercise. `linter.goudlokje.explain` shows the
