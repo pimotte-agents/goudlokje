@@ -23,12 +23,15 @@ inductive Check where
   | sorry
   /-- The help tactic gives no hint at a step (see `Checks.Help`). -/
   | help
+  /-- Two consecutive `Since` steps can be merged into one (see `Checks.Merge`). -/
+  | mergeableSince
   deriving Repr, BEq, Hashable, Inhabited
 
 namespace Check
 
 /-- All checks, in the order they run. -/
-def all : Array Check := #[.shortcut, .rawTactic, .typeAscription, .sorry, .help]
+def all : Array Check :=
+  #[.shortcut, .rawTactic, .typeAscription, .sorry, .help, .mergeableSince]
 
 /-- The name of the check, as used in `.test.json` and the results file. -/
 def name : Check → String
@@ -37,6 +40,7 @@ def name : Check → String
   | .typeAscription => "typeAscription"
   | .sorry => "sorry"
   | .help => "help"
+  | .mergeableSince => "mergeableSince"
 
 /-- The check called `name`, if any. -/
 def ofName? (name : String) : Option Check :=
@@ -49,6 +53,7 @@ def linterOption : Check → Lean.Option Bool
   | .typeAscription => linter.goudlokje.typeAscription
   | .sorry => linter.goudlokje.sorry
   | .help => linter.goudlokje.help
+  | .mergeableSince => linter.goudlokje.mergeableSince
 
 /-- The severity of an issue that `.test.json` does not expect. -/
 def severity : Check → MessageSeverity

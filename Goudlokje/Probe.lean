@@ -68,9 +68,9 @@ def runOnGoal (step : Step) (goal : MVarId) (x : MVarId → MetaM α) : IO α :=
       let copy ← Meta.mkFreshExprSyntheticOpaqueMVar (← goal.getType)
       x copy.mvarId!
 
-/-- Runs `probe` on `goal`, one of the goals before `step`, with a budget of `heartbeats`
-    (in thousands, like `maxHeartbeats`). -/
-def runProbe (step : Step) (goal : MVarId) (probe : Probe) (heartbeats : Nat) :
+/-- Runs the tactic `code` on `goal`, one of the goals before `step`, with a budget of
+    `heartbeats` (in thousands, like `maxHeartbeats`). -/
+def runTacticOnGoal (step : Step) (goal : MVarId) (code : Syntax) (heartbeats : Nat) :
     CommandElabM ProbeOutcome := do
   let termCtx ← liftTermElabM read
   let termState ← liftTermElabM get
@@ -81,12 +81,18 @@ def runProbe (step : Step) (goal : MVarId) (probe : Probe) (heartbeats : Nat) :
     withTheReader Core.Context ({ · with maxHeartbeats := heartbeats * 1000 }) do
       tryCatchRuntimeEx
         (do
-          let goals ← runTacticCode goal probe.code termCtx termState
+          let goals ← runTacticCode goal code termCtx termState
           unless goals.isEmpty do return .progress
           -- A proof with `sorry` does not count, e.g. when the probe's elaboration failed and
           -- Lean recovered from the error with `sorry`.
           return if (← instantiateMVars (.mvar goal)).hasSorry then .failed else .closed)
         (fun e => return if e.isMaxHeartbeat then .timeout else .failed)
+
+/-- Runs `probe` on `goal`, one of the goals before `step`, with a budget of `heartbeats`
+    (in thousands, like `maxHeartbeats`). -/
+def runProbe (step : Step) (goal : MVarId) (probe : Probe) (heartbeats : Nat) :
+    CommandElabM ProbeOutcome :=
+  runTacticOnGoal step goal probe.code heartbeats
 
 /-- Identifies a goal up to the names of its metavariables: its local context and target. -/
 abbrev GoalFingerprint := Array (Name × Expr × Option Expr) × Expr

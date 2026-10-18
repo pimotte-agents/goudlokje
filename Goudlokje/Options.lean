@@ -46,6 +46,11 @@ register_option linter.goudlokje.help : Bool := {
   descr := "(Goudlokje) report steps at which the help tactic (`goudlokje.help`) gives no hint"
 }
 
+register_option linter.goudlokje.mergeableSince : Bool := {
+  defValue := true
+  descr := "(Goudlokje) report consecutive `Since` steps that Lean Verbose can do in one step"
+}
+
 register_option goudlokje.allowedTactics : String := {
   defValue := ""
   descr := "(Goudlokje) raw Lean tactics allowed in Verbose proofs, as `;;`-separated leading \

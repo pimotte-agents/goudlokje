@@ -12,6 +12,7 @@ incorrect, and not too easy. It checks exercises written with
 | `typeAscription` | a type annotation, `(e : T)` or `Fix x : T`                                               | warning  |
 | `sorry`          | a `sorry` or `admit`                                                                      | error    |
 | `help`           | the help tactic (`goudlokje.help`, e.g. `help`) gives no hint at a step                    | error    |
+| `mergeableSince` | two consecutive `Since` steps that Verbose can do in one step (see below)                 | error    |
 
 The checks are Lean linters: they run while Lean elaborates the worksheet, during `lake build`
 and in the editor. Only exercises written with Verbose (a Verbose `Exercise`/`Example`, or a
@@ -71,7 +72,7 @@ Then `lake build` checks the worksheets, and the editor shows the findings.
 | `goudlokje.help`                         | `""`    | The help tactic that must give a hint at every step, e.g. `"help"` (Verbose's `help`); empty turns the check off. |
 | `goudlokje.noHelpMessages`               | `"I have nothing to say about this goal.;; No suggestion"` | Messages of the help tactic that mean it has no hint, separated by `;;`. |
 | `goudlokje.verboseModules`               | `"Verbose"` | The modules whose tactics count as Lean Verbose tactics, as module name prefixes separated by `;;`. Add the modules of your own Verbose-style tactics, e.g. `"Verbose;; MyProject.Tactics"`; keep `Verbose` in the list. |
-| `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry`, `.help` | `true` | Turn a check on or off.                 |
+| `linter.goudlokje.shortcut`, `.rawTactic`, `.typeAscription`, `.sorry`, `.help`, `.mergeableSince` | `true` | Turn a check on or off.                 |
 | `linter.goudlokje.explain`               | `false` | Debugging aid: shows the steps Goudlokje finds in each command and how it groups them.       |
 
 Like any option, they can also be set in a file (`set_option … in` for a single exercise).
@@ -122,6 +123,23 @@ together with the reference solution when the student version is made.
 
 ---
 
+## Mergeable `Since` steps
+
+The `mergeableSince` check reports a step `Since F₁ we get that N₁` followed by a step
+`Since F₂ we get that N₂` or `Since F₂ we conclude that C` on the goal it leaves, when Verbose can
+do both in one step: B with its facts replaced by F₁ and the facts of F₂ that are not among N₁. For
+example
+
+```lean
+  Since x ∈ X ∩ Y we get that x ∈ X and x ∈ Y
+  Since x ∈ Y we conclude that x ∈ Y ∪ Z
+```
+
+is reported as mergeable into `Since x ∈ X ∩ Y we conclude that x ∈ Y ∪ Z` if Verbose proves that.
+Two `get that` steps are only reported when the rest of the proof does not use N₁. Only English
+Verbose steps are recognised, facts are matched by their source text, and pairs with `hence`,
+`finally we conclude that` or more than 4 merged facts are skipped.
+
 ## Expected findings: `.test.json`
 
 Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise what is expected:
@@ -154,6 +172,8 @@ Each worksheet `Sheet.lean` may have a `Sheet.test.json`, listing per exercise w
   is false.
 - **`help` findings** (steps at which the help tactic gives no hint) are recorded under `lint`
   like `typeAscription`, e.g. `{"check":"help","step":2}`.
+- **`mergeableSince` findings** are recorded under `lint` too, at the first step of the pair, e.g.
+  `{"check":"mergeableSince","step":3}`.
 - **`rawTactic` findings cannot be recorded.** Allow a tactic for the whole project with
   `goudlokje.allowedTactics` instead.
 

@@ -80,7 +80,8 @@ def proposeChanges (old : Expectations) (r : ModuleResults) : Array Change := Id
       if expected.expects f.check f.step f.tactic? then continue
       let change? : Option Change := match f.check with
         | .shortcut => f.tactic?.map fun tactic => .recordShortcut name { step := f.step, tactic }
-        | .typeAscription | .help => some (.recordLint name { check := f.check.name, step := f.step })
+        | .typeAscription | .help | .mergeableSince =>
+          some (.recordLint name { check := f.check.name, step := f.step })
         | .sorry => some (.allowSorry name)
         | .rawTactic => none
       if let some change := change? then

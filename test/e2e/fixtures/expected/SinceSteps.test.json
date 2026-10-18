@@ -1,6 +1,9 @@
 {
   "exercises": {
     "1.1.13": {
+      "lint": [
+        {"check":"mergeableSince","step":1}
+      ],
       "shortcuts": [
         {"step":1,"tactic":"tauto"}
       ]

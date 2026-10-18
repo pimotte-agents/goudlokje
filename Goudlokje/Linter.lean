@@ -2,6 +2,7 @@ import Lean.Linter.Basic
 import Goudlokje.Checks.Shortcut
 import Goudlokje.Checks.Lint
 import Goudlokje.Checks.Help
+import Goudlokje.Checks.Merge
 import Goudlokje.Report
 
 /-!
@@ -29,6 +30,7 @@ private def runCheck (e : Exercise) : Check → CommandElabM (Option (Array Issu
   | .typeAscription => some <$> Checks.typeAscriptions e
   | .sorry => some <$> Checks.sorries e
   | .help => Checks.helpless e
+  | .mergeableSince => some <$> Checks.mergeableSinces e
 
 /-- Drops issues reported at the same place for the same reason (a nested step is also part of
     the step around it). -/
@@ -43,7 +45,8 @@ private def isExpected (e : Exercise) (issue : Issue) : Bool :=
 
 /-- How to record an issue as expected, appended to the message of an unexpected issue. -/
 private def hint : Check → MessageData
-  | .shortcut | .typeAscription | .help => m!"If this is intended, record it with `goudlokje update`."
+  | .shortcut | .typeAscription | .help | .mergeableSince =>
+    m!"If this is intended, record it with `goudlokje update`."
   | .sorry => m!"If this exercise may contain `sorry`, allow it with `goudlokje update`."
   | .rawTactic =>
     m!"Tactics can be allowed for a whole project with the option `goudlokje.allowedTactics`."
