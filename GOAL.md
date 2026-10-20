@@ -8,7 +8,8 @@ The checks are Lean linters, so they run whenever Lean elaborates a worksheet: d
 - `rawTactic`: a raw Lean tactic instead of a Verbose tactic;
 - `typeAscription`: a type annotation in a proof step;
 - `sorry`: a `sorry` or `admit`;
-- `help`: the help tactic (`goudlokje.help`) gives no hint at a step, so a student who is stuck there gets no help.
+- `help`: the help tactic (`goudlokje.help`) gives no hint at a step, so a student who is stuck there gets no help;
+- `mergeableSince`: two consecutive `Since` steps that Verbose can do in one step, so the reference solution is finer-grained than needed.
 
 Only exercises written with Lean Verbose are checked, and only in student input areas of Waterproof worksheets. Any worksheet can have an accompanying test file (`filename.lean` goes with `filename.test.json`) that records expected findings, such as a shortcut the reference solution cannot avoid; those are no longer reported.
 

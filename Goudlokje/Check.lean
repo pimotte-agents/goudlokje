@@ -19,7 +19,7 @@ inductive Check where
   | rawTactic
   /-- A type annotation in a proof step. -/
   | typeAscription
-  /-- A `sorry` in a proof. -/
+  /-- A `sorry` or `admit` in a proof. -/
   | sorry
   /-- The help tactic gives no hint at a step (see `Checks.Help`). -/
   | help

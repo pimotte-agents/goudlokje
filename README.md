@@ -108,14 +108,15 @@ Exercise "1.1.1"
   …
 Proof:
   Alternative solution:
+    Assume that p
     We conclude by hypothesis
   Assume that p
   …
 QED
 ```
 
-The steps of an alternative solution are checked like the other steps: `rawTactic`, `sorry`,
-the shortcut probes and the step numbering include them. The `Alternative solution:` line itself
+The steps of an alternative solution are checked like the other steps: all checks and the step
+numbering include them. The `Alternative solution:` line itself
 is not a step, and the probes on the alternative run separately from those of the reference
 solution. A `sorry` inside it does not give Lean's "declaration uses sorry" warning; only
 Goudlokje's `sorry` check applies. Placed in a student input area, an alternative is removed
@@ -127,8 +128,8 @@ together with the reference solution when the student version is made.
 
 The `mergeableSince` check reports a step `Since F₁ we get that N₁` followed by a step
 `Since F₂ we get that N₂` or `Since F₂ we conclude that C` on the goal it leaves, when Verbose can
-do both in one step: B with its facts replaced by F₁ and the facts of F₂ that are not among N₁. For
-example
+do both in one step: the second step, with its facts replaced by F₁ and the facts of F₂ that are
+not among N₁. N₁ (and N₂) must be a single fact. For example
 
 ```lean
   Since x ∈ X ∩ Y we get that x ∈ X and x ∈ Y
@@ -136,9 +137,17 @@ example
 ```
 
 is reported as mergeable into `Since x ∈ X ∩ Y we conclude that x ∈ Y ∪ Z` if Verbose proves that.
-Two `get that` steps are only reported when the rest of the proof does not use N₁. Only English
-Verbose steps are recognised, facts are matched by their source text, and pairs with `hence`,
-`finally we conclude that` or more than 4 merged facts are skipped.
+Two `get that` steps are only reported when the rest of the proof does not use N₁. When F₁ adds
+nothing to F₂, the first step is reported as one that can be left out.
+
+Limitations:
+
+- Only English Verbose steps are recognised, and merged facts are joined with ", " and " and ".
+- Facts are matched by their source text (`x∈X` is not `x ∈ X`). A missed match only means that a
+  pair is not reported, never a wrong report.
+- Pairs with `hence`, `finally we conclude that`, the named `we get h : …` form or more than 4
+  merged facts are skipped.
+- A longer chain is reported pair by pair; merge it step by step.
 
 ## Expected findings: `.test.json`
 
@@ -240,8 +249,11 @@ Code overview (`Goudlokje/`):
 | `Steps`, `Origin`           | proof steps from the syntax and info trees; Verbose or not, by the module that declares a tactic (`goudlokje.verboseModules`) |
 | `Scope`, `Exercise`         | input areas; the per-command context shared by the checks                   |
 | `Check`, `Finding`          | the checks and their properties; the issues they find                       |
-| `Probe`, `Checks/`          | running probes with a budget; the five checks                               |
+| `Probe`, `Checks/`          | running probes with a budget; the checks                                    |
 | `Linter`, `Report`          | the linter: messages, stale entries, the results files                      |
 | `Alternative`               | the `Alternative solution:` tactic                                          |
 | `Expectations`              | the `.test.json` format; which findings are expected, which entries stale    |
 | `Cli/`                      | the `check` and `update` commands; reading the results files                |
+| `Options`                   | the Goudlokje options                                                       |
+| `FileCache`, `SyntaxUtil`   | memoising values computed from a file; small syntax helpers                 |
+| `Linter/Explain`            | debugging aid: what each command's exercise and steps are (`linter.goudlokje.explain`) |

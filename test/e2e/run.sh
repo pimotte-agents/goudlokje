@@ -7,7 +7,7 @@
 #    exactly the `.test.json` files in `fixtures/expected/` (none for fixtures without findings),
 #    and `check` must then report exactly the errors in `fixtures/expected/errors.txt` (raw Lean
 #    tactics, which cannot be recorded as expected). After an intended change of behaviour,
-#    regenerate these files with `e2e/run.sh --regenerate`.
+#    regenerate these files with `test/e2e/run.sh --regenerate`.
 set -eu
 cd "$(dirname "$0")/.."
 regenerate=false
