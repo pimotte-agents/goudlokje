@@ -105,6 +105,21 @@ Proof:
   exact trivial
 QED
 
+-- A suppressible check recorded as a lint entry is only a warning.
+/--
+warning: `sorry` at step 1 of exercise "sorry as lint" cannot be recorded as expected; remove it with `goudlokje update`
+
+Note: This linter can be disabled with `set_option linter.goudlokje.sorry false`
+-/
+#guard_msgs in
+Exercise "sorry as lint"
+  Given: (n : ℕ)
+  Assume: (h : n = n)
+  Conclusion: True
+Proof:
+  sorry
+QED
+
 /-! ## `typeAscription`: type annotations -/
 
 section

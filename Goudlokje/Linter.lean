@@ -61,9 +61,13 @@ private def reportStale (e : Exercise) (results : Array (Check × Array Issue)) 
     let (check, severity, msg) : Check × MessageSeverity × MessageData := match entry with
       | .shortcut s => (.shortcut, .warning, m!"expected shortcut `{s.tactic}` at step {s.step} \
           of exercise {exercise} no longer occurs; remove it with `goudlokje update`")
-      | .lint l true => ((Check.ofName? l.check).getD .rawTactic, .error, m!"`{l.check}` at \
-          step {l.step} of exercise {exercise} cannot be recorded as expected; remove it with \
-          `goudlokje update`")
+      | .lint l true =>
+        -- A suppressible check (`shortcut`, `sorry`) only has the wrong place in `.test.json`:
+        -- a warning, as `goudlokje check` reports it. Raw tactics and unknown checks are errors.
+        let check? := Check.ofName? l.check
+        let severity := if check?.any (·.suppressible) then .warning else .error
+        (check?.getD .rawTactic, severity, m!"`{l.check}` at step {l.step} of exercise \
+          {exercise} cannot be recorded as expected; remove it with `goudlokje update`")
       | .lint l false => ((Check.ofName? l.check).getD .typeAscription, .warning, m!"expected \
           `{l.check}` at step {l.step} of exercise {exercise} no longer occurs; remove it with \
           `goudlokje update`")

@@ -4,6 +4,10 @@
     "documented raw tactic": {
       "lint": [{ "check": "rawTactic", "step": 1 }]
     },
+    "sorry as lint": {
+      "lint": [{ "check": "sorry", "step": 1 }],
+      "allowSorry": true
+    },
     "documented annotation": {
       "lint": [
         { "check": "typeAscription", "step": 1 },
